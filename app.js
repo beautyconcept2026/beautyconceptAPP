@@ -344,7 +344,7 @@ function viewImpostazioni() {
         <label class="btn" style="margin:0;color:var(--txt);font-size:15px">⬆️ Carica backup<input type="file" id="importFile" accept="application/json,.json" hidden></label>
       </div>
     </div>
-    <p class="hint" style="text-align:center;margin:22px 0 4px">Beauty Concept · v1.0</p>`;
+    <p class="hint" style="text-align:center;margin:22px 0 4px">Beauty Concept · v1.3</p>`;
 }
 
 function bindImpostazioni() {
@@ -665,6 +665,7 @@ window.BC = {
   getDb: () => db,
   setDb: d => { const base = JSON.parse(JSON.stringify(DEFAULT)); db = { ...base, ...d, settings: { ...base.settings, ...(d.settings || {}) } }; },
   reset: () => { db = JSON.parse(JSON.stringify(DEFAULT)); },
+  defaults: () => JSON.parse(JSON.stringify(DEFAULT)),
   save: () => save(),
   saveLocal: () => save(true),
   render: () => render(),

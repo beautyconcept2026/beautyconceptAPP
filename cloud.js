@@ -14,6 +14,7 @@ const MAX_ORARI = 72;          // ultime 72 copie (3 giorni)
 const GIORNI_GIORNALIERI = 30; // più una copia al giorno per 30 giorni
 const CHUNK = 250000;          // dimensione pezzi del backup (limite Firestore 1 MB per documento)
 const LOCALE_BK = 'beautyconcept.backup.locale';
+const FLAG_SYNC = 'beautyconcept.sync.uid'; // account già sincronizzato su questo telefono
 
 const BC = window.BC;
 const cfg = window.FIREBASE_CONFIG;
@@ -86,12 +87,15 @@ async function avvia() {
   let snap = null;
   try { snap = await F.getDoc(F.doc(base, 'config', 'settings')); } catch (e) { snap = null; }
   const primoAvvio = snap && !snap.exists();
+  // primo login su QUESTO telefono: i dati già presenti qui vanno uniti a quelli online, non persi
+  const unisci = localStorage.getItem(FLAG_SYNC) !== user.uid;
   if (primoAvvio) {
     // account nuovo e vuoto: carica online quello che c'è già sul telefono
     COLS.forEach(c => synced[c].clear()); synced.settings = '';
     await push();
+    localStorage.setItem(FLAG_SYNC, user.uid);
   }
-  ascolta(!primoAvvio);
+  ascolta(!primoAvvio, unisci && !primoAvvio ? JSON.parse(JSON.stringify(BC.getDb())) : null);
   statoRete();
 
   clearInterval(timerBk);
@@ -107,15 +111,31 @@ function ferma() {
   setStato('off');
 }
 
-function ascolta(cloudVince) {
+function ascolta(cloudVince, locale) {
   unsubs.forEach(u => u()); unsubs = [];
+  let attesi = COLS.length + 1, aggiunti = 0;
+  const fineUnione = () => {
+    if (--attesi > 0) return;
+    if (locale) {
+      localStorage.setItem(FLAG_SYNC, user.uid);
+      if (aggiunti) BC.toast(`Dati di questo telefono uniti a quelli online ✓`);
+      push();
+    }
+  };
   COLS.forEach(col => {
     let primo = true;
-    unsubs.push(F.onSnapshot(F.collection(base, col), snap => {
+    unsubs.push(F.onSnapshot(F.collection(base, col), { includeMetadataChanges: false }, snap => {
       const d = BC.getDb();
+      if (primo && locale && snap.metadata && snap.metadata.fromCache) return; // aspetta i dati veri dal server
       if (primo && cloudVince) {
         d[col] = snap.docs.map(x => x.data());
         synced[col] = new Map(snap.docs.map(x => [x.id, JSON.stringify(x.data())]));
+        if (locale && col !== 'servizi') {
+          const ids = new Set(d[col].map(x => x.id));
+          const extra = locale[col].filter(x => !ids.has(x.id));
+          d[col].push(...extra); aggiunti += extra.length;
+        }
+        primo = false; aggiornaDaCloud(); fineUnione(); return;
       } else {
         snap.docChanges().forEach(ch => {
           const id = ch.doc.id;
@@ -134,12 +154,24 @@ function ascolta(cloudVince) {
       aggiornaDaCloud();
     }, err => { console.error(err); setStato('errore'); }));
   });
-  unsubs.push(F.onSnapshot(F.doc(base, 'config', 'settings'), s => {
-    if (!s.exists()) return;
+  let primoSet = true;
+  unsubs.push(F.onSnapshot(F.doc(base, 'config', 'settings'), { includeMetadataChanges: false }, s => {
+    if (primoSet && locale && s.metadata && s.metadata.fromCache) return;
     const d = BC.getDb();
-    d.settings = { ...d.settings, ...s.data() };
+    if (!s.exists()) { if (primoSet) { primoSet = false; fineUnione(); } return; }
+    const cloud = s.data();
+    d.settings = { ...d.settings, ...cloud };
     synced.settings = JSON.stringify(d.settings);
+    if (primoSet && locale) {
+      // se online un campo è ancora quello di partenza e su questo telefono era stato compilato, tieni quello del telefono
+      const def = BC.defaults().settings;
+      Object.keys(locale.settings || {}).forEach(k => {
+        const online = cloud[k], qui = locale.settings[k];
+        if ((online === undefined || online === '' || online === def[k]) && qui !== undefined && qui !== '' && qui !== def[k]) { d.settings[k] = qui; aggiunti++; }
+      });
+    }
     aggiornaDaCloud();
+    if (primoSet) { primoSet = false; fineUnione(); }
   }, err => { console.error(err); setStato('errore'); }));
 }
 
@@ -282,6 +314,7 @@ function mostraLogin() {
       <p class="login-err" id="lErr"></p>
       <button class="btn pri block" type="submit" id="lGo">Accedi</button>
       <button class="btn ghost block small" type="button" id="lReset" style="margin-top:8px">Password dimenticata?</button>
+      <p class="hint" style="text-align:center;margin-top:12px">Versione 1.3</p>
     </form>`;
   document.body.appendChild(el);
   const err = m => { $('#lErr').textContent = m; };
@@ -349,7 +382,7 @@ async function aggiornaBox() {
   $('#bkEsci').addEventListener('click', async () => {
     if (!confirm('Uscire dall\'account? I dati restano al sicuro online; da questo telefono verranno tolti finché non rientri.')) return;
     await F.signOut(auth);
-    BC.reset(); BC.saveLocal(); BC.render();
+    BC.reset(); BC.saveLocal(); localStorage.removeItem(FLAG_SYNC); BC.render();
   });
 
   try {
