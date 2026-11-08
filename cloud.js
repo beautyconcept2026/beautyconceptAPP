@@ -314,7 +314,7 @@ function mostraLogin() {
       <p class="login-err" id="lErr"></p>
       <button class="btn pri block" type="submit" id="lGo">Accedi</button>
       <button class="btn ghost block small" type="button" id="lReset" style="margin-top:8px">Password dimenticata?</button>
-      <p class="hint" style="text-align:center;margin-top:12px">Versione 1.6 · <a href="#" data-aggiorna style="color:var(--gold)">aggiorna app</a></p>
+      <p class="hint" style="text-align:center;margin-top:12px">Versione 1.7 · <a href="#" data-aggiorna style="color:var(--gold)">aggiorna app</a></p>
     </form>`;
   document.body.appendChild(el);
   const err = m => { $('#lErr').textContent = m; };

@@ -51,60 +51,36 @@
 </head>
 <body>
   <div class="wrap" id="app"></div>
+  <script src="ics.js"></script>
 
 <script>
 'use strict';
 (function () {
-  var q = new URLSearchParams(location.search);
-  var nome = q.get('n') || '', servizio = q.get('s') || 'Appuntamento', t = q.get('t') || '',
-      durata = Math.max(5, parseInt(q.get('m'), 10) || 60), centro = q.get('c') || 'Beauty Concept',
-      indirizzo = q.get('a') || '', tel = (q.get('p') || '').replace(/\D/g, '');
   var app = document.getElementById('app');
   var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
 
-  var m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(t);
-  if (!m) {
+  var D = window.BCIcs && BCIcs.daParametri(location.search);
+  if (!D) {
     app.innerHTML = '<img class="logo" src="logo.png" alt=""><p class="err">Link dell’appuntamento non valido.<br>Contatta il centro per i dettagli.</p>';
     return;
   }
-  var inizio = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
-  var fine = new Date(inizio.getTime() + durata * 60000);
-  var ini = centro.split(/\s+/).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase();
+  var nome = D.nome, servizio = D.servizio, durata = D.durata, centro = D.centro, indirizzo = D.indirizzo, tel = D.tel;
+  var inizio = D.inizio, fine = D.fine, titolo = D.titolo, descr = D.descr, icsDate = BCIcs.icsDate;
   var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   var passato = fine < new Date();
   document.title = 'Appuntamento · ' + centro;
 
-  /* ---- file calendario (.ics) con promemoria 72 e 48 ore prima ---- */
-  function icsDate(d) { return d.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'; }
-  function icsTxt(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
-  function fold(line) { // righe max 75 caratteri come da standard
-    var out = [], s = line;
-    while (s.length > 74) { out.push(s.slice(0, 74)); s = ' ' + s.slice(74); }
-    out.push(s); return out.join('\r\n');
-  }
-  var titolo = servizio + ' · ' + centro;
-  var descr = 'Appuntamento da ' + centro + ': ' + servizio + '.' + (tel ? ' Per spostarlo contatta il centro: +' + tel : '');
-  function alarm(ore) {
-    return ['BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsTxt('Promemoria: ' + titolo), 'TRIGGER:-PT' + ore + 'H', 'END:VALARM'];
-  }
-  var ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Beauty Concept//Agenda//IT', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-    'BEGIN:VEVENT',
-    'UID:' + t + '-' + encodeURIComponent(nome || 'cliente') + '@beautyconcept',
-    'DTSTAMP:' + icsDate(new Date()),
-    'DTSTART:' + icsDate(inizio),
-    'DTEND:' + icsDate(fine),
-    'SUMMARY:' + icsTxt(titolo),
-    'DESCRIPTION:' + icsTxt(descr),
-    indirizzo ? 'LOCATION:' + icsTxt(indirizzo) : null
-  ].concat(alarm(72), alarm(48), ['END:VEVENT', 'END:VCALENDAR'])
-   .filter(Boolean).map(fold).join('\r\n');
+  /* ---- file calendario (.ics) con promemoria 72 e 48 ore prima ----
+     Il service worker lo restituisce come vero file "evento.ics":
+     iPhone apre direttamente "Aggiungi al calendario". */
+  var ics = BCIcs.crea(D);
+  var icsUrl = 'evento.ics' + location.search;
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function () {});
 
-  function scaricaIcs() {
-    if (isIOS) { // Safari su iPhone apre direttamente "Aggiungi al calendario"
-      location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
-      return;
-    }
+  function scaricaIcs(e) {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) return; // il link evento.ics funziona da solo
+    if (e) e.preventDefault();
+    if (isIOS) { location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics); return; }
     var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -138,7 +114,8 @@
     + ';l.beginTime=' + inizio.getTime() + ';l.endTime=' + fine.getTime()
     + ';S.browser_fallback_url=' + encodeURIComponent(gUrl) + ';end';
   var androidBtn = '<a class="btn pri" href="' + androidUrl + '">' + IC_CAL + 'Aggiungi al calendario del telefono</a>';
-  var appleBtn = '<button class="btn ' + (isIOS ? 'pri' : '') + '" id="ics">' + IC_CAL + (isIOS ? 'Aggiungi al calendario' : 'Scarica per il calendario') + '</button>';
+  var appleBtn = '<a class="btn ' + (isIOS ? 'pri' : '') + '" id="ics" href="' + esc(icsUrl) + '">' + IC_CAL + (isIOS ? 'Aggiungi al calendario' : 'Scarica per il calendario') + '</a>'
+    + (isIOS ? '<p class="note" style="margin-top:8px">Se non si apre, tocca <b>⋯</b> o l’icona della bussola e scegli <b>Apri in Safari</b>.</p>' : '');
   var googleBtn = '<a class="btn ' + (isIOS || isAndroid ? '' : 'pri') + '" href="' + gUrl + '" target="_blank" rel="noopener">' + IC_G + 'Aggiungi a Google Calendar</a>';
 
   app.innerHTML =

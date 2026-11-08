@@ -1,10 +1,10 @@
 /* Beauty Concept – service worker: l'app funziona anche senza internet */
-const CACHE = 'beauty-concept-v9';
+importScripts('ics.js');
+const CACHE = 'beauty-concept-v10';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const ASSETS = ['./', './index.html', './diagnosi.js', './style.css', './app.js', './import-gcal.js', './rubrica.js', './cloud.js', './firebase-config.js',
-  './appuntamento.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
-  './logo.png', './logo-256.png',
-  FB + 'firebase-app.js', FB + 'firebase-auth.js', FB + 'firebase-firestore.js'];
+  './appuntamento.html', './ics.js', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+  './logo.png', './logo-256.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(ASSETS.map(a => c.add(a).catch(() => {})))));
@@ -19,6 +19,14 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  // file calendario dell'appuntamento, creato al volo dai dati del link
+  if (url.origin === location.origin && url.pathname.endsWith('/evento.ics')) {
+    const d = self.BCIcs.daParametri(url.search);
+    e.respondWith(d
+      ? new Response(self.BCIcs.crea(d), { headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="appuntamento.ics"' } })
+      : new Response('Link non valido', { status: 404 }));
+    return;
+  }
   // librerie Firebase: copia salvata sul telefono (servono anche offline)
   if (url.href.startsWith(FB)) {
     e.respondWith(caches.match(req).then(c => c || fetch(req).then(r => salva(req, r))));
