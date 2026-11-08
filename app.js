@@ -353,7 +353,8 @@ function viewImpostazioni() {
         <label class="btn" style="margin:0;color:var(--txt);font-size:15px">⬆️ Carica backup<input type="file" id="importFile" accept="application/json,.json" hidden></label>
       </div>
     </div>
-    <p class="hint" style="text-align:center;margin:22px 0 4px">Beauty Concept · v1.4</p>`;
+    <button class="btn ghost block small" data-aggiorna style="margin-top:22px">🔄 Aggiorna app all'ultima versione</button>
+    <p class="hint" style="text-align:center;margin:10px 0 4px">Beauty Concept · v1.5</p>`;
 }
 
 function bindImpostazioni() {

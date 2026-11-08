@@ -1,7 +1,7 @@
 /* Beauty Concept – service worker: l'app funziona anche senza internet */
-const CACHE = 'beauty-concept-v7';
+const CACHE = 'beauty-concept-v8';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
-const ASSETS = ['./', './index.html', './style.css', './app.js', './import-gcal.js', './rubrica.js', './cloud.js', './firebase-config.js',
+const ASSETS = ['./', './index.html', './diagnosi.js', './style.css', './app.js', './import-gcal.js', './rubrica.js', './cloud.js', './firebase-config.js',
   './appuntamento.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   './logo.png', './logo-256.png',
   FB + 'firebase-app.js', FB + 'firebase-auth.js', FB + 'firebase-firestore.js'];
@@ -25,9 +25,14 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.origin !== location.origin) return; // database e login Firebase vanno sempre in rete
-  // file dell'app: risposta immediata dalla copia, aggiornata in background
-  e.respondWith(caches.match(req, { ignoreSearch: true }).then(cached => {
-    const net = fetch(req).then(r => (url.search ? r : salva(req, r))).catch(() => cached);
-    return cached || net;
+  // file dell'app: con internet sempre la versione più nuova (così non si mischiano versioni),
+  // senza internet (o rete lentissima) la copia salvata sul telefono
+  e.respondWith(new Promise(resolve => {
+    let fatto = false;
+    const daCache = () => caches.match(req, { ignoreSearch: true }).then(c => c || caches.match('./index.html'));
+    const timer = setTimeout(() => daCache().then(c => { if (c && !fatto) { fatto = true; resolve(c); } }), 4000);
+    fetch(req, { cache: 'no-cache' })
+      .then(r => { if (!url.search) salva(req, r); if (!fatto) { fatto = true; clearTimeout(timer); resolve(r); } })
+      .catch(() => daCache().then(c => { if (!fatto) { fatto = true; clearTimeout(timer); resolve(c || Response.error()); } }));
   }));
 });
