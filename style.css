@@ -166,3 +166,10 @@ textarea{min-height:120px;resize:vertical;line-height:1.45}
 .bk em{font-style:normal;font-size:13px;font-weight:600;color:var(--gold);white-space:nowrap}
 .bk:active{background:var(--blush2)}
 input[type=checkbox]{-webkit-appearance:checkbox;appearance:auto;padding:0;width:20px;height:20px;border-radius:4px}
+.rb-box{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:16px;background:#fff;padding:0 12px}
+.rb-row{display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);margin:0;color:var(--txt);font-size:14.5px}
+.rb-row:last-child{border-bottom:0}
+.rb-row>span{flex:1;min-width:0}
+.rb-row b{display:block;font-weight:600}
+.rb-row small{color:var(--mut);font-size:12.5px}
+.rb-row input[type=checkbox]{flex:0 0 20px}

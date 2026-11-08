@@ -80,9 +80,10 @@
     const tel = (titolo.match(TEL) || [])[0] || '';
     const senzaTel = titolo.replace(TEL, ' ').replace(/\s+/g, ' ').trim();
     const w = senzaTel.split(' ');
-    let i = w.findIndex((x, k) => k > 0 && maiuscola(x));
+    // il servizio inizia dalla prima parola in MAIUSCOLO, oppure da un numero/prezzo (es. "1/2 GAMBA", "€25")
+    let i = w.findIndex((x, k) => k > 0 && (maiuscola(x) || /^[\d€+]/.test(x)));
     if (i < 0) return { nome: senzaTel, tel, servizio: '', note: '' };
-    const nome = w.slice(0, i).join(' ');
+    const nome = w.slice(0, i).join(' ').replace(/[.,;:\s]+$/, '');
     let servizio = w.slice(i).join(' ');
     const note = [];
     servizio = servizio.replace(/€\s?\d+(?:[.,]\d+)?|\b\d+(?:[.,]\d+)?\s?€|\btotale\b|\((?:carta|contanti|bancomat|pos)\)/gi, m => { note.push(m.trim()); return ' '; })

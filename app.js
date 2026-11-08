@@ -333,6 +333,15 @@ function viewImpostazioni() {
       <label class="btn block" style="margin:10px 0 0;color:var(--txt);font-size:15px">📅 Scegli il file di Google Calendar<input type="file" id="gcalFile" accept=".zip,.ics,text/calendar,application/zip" hidden></label>
     </div>
 
+    <div class="section-t">Numeri dalla rubrica del telefono</div>
+    <div class="card">
+      ${(() => { const n = db.clienti.filter(c => !String(c.tel || '').replace(/\D/g, '')).length; return n ? `<div class="warnbox" style="margin-top:0">${n} client${n === 1 ? 'e' : 'i'} senza numero</div>` : `<div class="okbox" style="margin-top:0">✓ Tutte le clienti hanno il numero</div>`; })()}
+      <p class="hint">Esporta la rubrica del telefono e sceglila qui: l'app abbina da sola i numeri alle clienti e ti fa controllare prima di salvare.<br>
+      <b>iPhone:</b> app Contatti → in alto a sinistra <b>Liste</b> → tieni premuto <b>Tutti i contatti</b> → <b>Esporta</b> → Salva su File.<br>
+      <b>Android:</b> app Contatti → menu → <b>Gestisci contatti</b> → <b>Esporta</b> (file .vcf).</p>
+      <label class="btn block" style="margin:10px 0 0;color:var(--txt);font-size:15px">📇 Scegli il file della rubrica (.vcf)<input type="file" id="vcfFile" accept=".vcf,text/vcard,text/x-vcard" hidden></label>
+    </div>
+
     <div class="section-t">Cloud e backup automatici</div>
     <div class="card" id="cloudBox"><p class="hint" style="margin:0">Caricamento…</p></div>
 
@@ -344,7 +353,7 @@ function viewImpostazioni() {
         <label class="btn" style="margin:0;color:var(--txt);font-size:15px">⬆️ Carica backup<input type="file" id="importFile" accept="application/json,.json" hidden></label>
       </div>
     </div>
-    <p class="hint" style="text-align:center;margin:22px 0 4px">Beauty Concept · v1.3</p>`;
+    <p class="hint" style="text-align:center;margin:22px 0 4px">Beauty Concept · v1.4</p>`;
 }
 
 function bindImpostazioni() {
@@ -397,6 +406,7 @@ function formAppt(a) {
     <datalist id="dlClienti">${db.clienti.map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist>
     <label>Cellulare</label>
     <input id="fTel" type="tel" inputmode="tel" placeholder="333 1234567" value="${esc(c ? c.tel : '')}">
+    ${window.BCRubrica && BCRubrica.pickerOk ? '<button class="btn ghost block small" data-rubrica="fTel" style="margin-top:8px">📇 Prendi dalla rubrica</button>' : ''}
     <label>Servizio</label>
     <select id="fSrv">
       ${db.servizi.map(s => `<option value="${s.id}" ${s.id === srvId ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
@@ -528,6 +538,7 @@ function sheetCliente(id) {
     <h3>${c ? esc(c.nome) : 'Nuova cliente'}</h3>
     <label>Nome e cognome</label><input id="cNome" value="${esc(c ? c.nome : '')}">
     <label>Cellulare</label><input id="cTel" type="tel" inputmode="tel" value="${esc(c ? c.tel : '')}">
+    ${window.BCRubrica && BCRubrica.pickerOk ? '<button class="btn ghost block small" data-rubrica="cTel" style="margin-top:8px">📇 Prendi dalla rubrica</button>' : ''}
     <label>Note</label><input id="cNote" value="${esc(c ? c.note || '' : '')}" placeholder="Allergie, preferenze…">
     <button class="btn pri block" data-act="salvaCli" data-id="${c ? c.id : ''}" style="margin-top:16px">Salva</button>
     ${c ? `
