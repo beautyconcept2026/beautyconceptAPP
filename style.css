@@ -1,5 +1,6 @@
 /* ===== Beauty Concept – stile (colori del logo: cipria, bianco, oro, nero) ===== */
 :root{
+  color-scheme:only light;
   --bg:#f7eeec; --blush:#e9c7c5; --blush2:#f2dcda; --sheet:#fffaf9; --card:#ffffff; --line:rgba(120,80,70,.13);
   --txt:#1d1517; --mut:#8c7573; --gold:#b98c5f; --gold2:#d9b48f;
   --goldg:linear-gradient(135deg,#e6caa6 0%,#c79b6c 45%,#e9d0b0 100%);
