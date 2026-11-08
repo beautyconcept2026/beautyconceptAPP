@@ -67,9 +67,10 @@ function load() {
   return JSON.parse(JSON.stringify(DEFAULT));
 }
 let db = load();
-function save() {
+function save(soloLocale) {
   try { localStorage.setItem(KEY, JSON.stringify(db)); }
   catch (e) { toast('⚠️ Impossibile salvare i dati'); }
+  if (!soloLocale && window.BC && window.BC.onSave) window.BC.onSave(); // sincronizza col cloud
 }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
@@ -183,6 +184,7 @@ function render() {
   v.innerHTML = ({ agenda: viewAgenda, ricordare: viewRicordare, clienti: viewClienti, impostazioni: viewImpostazioni })[tab]();
   if (tab === 'agenda') centraGiorno();
   if (tab === 'impostazioni') bindImpostazioni();
+  if (window.BC && window.BC.afterRender) window.BC.afterRender(tab);
 }
 
 function centraGiorno() {
@@ -324,9 +326,12 @@ function viewImpostazioni() {
       <input data-set="linkBase" value="${esc(s.linkBase)}" placeholder="https://tuonome.github.io/beauty-concept/appuntamento.html" inputmode="url">
     </div>
 
-    <div class="section-t">Backup</div>
+    <div class="section-t">Cloud e backup automatici</div>
+    <div class="card" id="cloudBox"><p class="hint" style="margin:0">Caricamento…</p></div>
+
+    <div class="section-t">Backup su file</div>
     <div class="card">
-      <p class="hint" style="margin-top:0">I dati sono salvati solo su questo telefono. Fai un backup ogni tanto.</p>
+      <p class="hint" style="margin-top:0">Puoi anche scaricare una copia su file da conservare dove vuoi (Drive, email, WhatsApp).</p>
       <div class="grid2">
         <button class="btn" data-act="export">⬇️ Salva backup</button>
         <label class="btn" style="margin:0;color:var(--txt);font-size:15px">⬆️ Carica backup<input type="file" id="importFile" accept="application/json,.json" hidden></label>
@@ -645,6 +650,20 @@ document.addEventListener('change', e => {
 $('#fab').addEventListener('click', () => (tab === 'clienti' ? sheetCliente(null) : formAppt(null)));
 $('#backdrop').addEventListener('click', () => { closeSheet(); render(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#sheet').classList.contains('on')) render(); });
+
+/* ---------- collegamento con cloud.js (Firebase) ---------- */
+window.BC = {
+  getDb: () => db,
+  setDb: d => { const base = JSON.parse(JSON.stringify(DEFAULT)); db = { ...base, ...d, settings: { ...base.settings, ...(d.settings || {}) } }; },
+  reset: () => { db = JSON.parse(JSON.stringify(DEFAULT)); },
+  save: () => save(),
+  saveLocal: () => save(true),
+  render: () => render(),
+  toast: m => toast(m),
+  vista: () => tab,
+  onSave: null,
+  afterRender: null
+};
 
 render();
 
