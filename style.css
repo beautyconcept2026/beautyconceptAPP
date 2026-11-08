@@ -173,3 +173,28 @@ input[type=checkbox]{-webkit-appearance:checkbox;appearance:auto;padding:0;width
 .rb-row b{display:block;font-weight:600}
 .rb-row small{color:var(--mut);font-size:12.5px}
 .rb-row input[type=checkbox]{flex:0 0 20px}
+
+/* ===== Assistente AI ===== */
+.ai-btn{margin-left:8px;width:38px;height:38px;border-radius:50%;border:1px solid rgba(185,140,95,.45);background:var(--txt);color:var(--gold2);font-size:17px;display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 20px -10px rgba(29,21,23,.7);flex:0 0 auto}
+.ai-btn[hidden]{display:none}
+.cloud-dot[hidden]+.ai-btn{margin-left:auto}
+.ai-head{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+.ai-avatar{width:46px;height:46px;border-radius:50%;background:var(--txt);color:var(--gold2);display:grid;place-items:center;font-size:20px;flex:0 0 auto}
+.ai-msgs{display:flex;flex-direction:column;gap:8px;min-height:120px}
+.ai-bolla{max-width:88%;padding:11px 14px;border-radius:18px;font-size:14.5px;line-height:1.5;word-break:break-word}
+.ai-bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:6px;box-shadow:var(--shadow)}
+.ai-utente{align-self:flex-end;background:var(--txt);color:#fff;border-bottom-right-radius:6px}
+.ai-azioni{display:flex;gap:6px;margin-top:8px}
+.ai-azioni button{border:1px solid var(--line);background:var(--blush2);border-radius:10px;padding:6px 10px;font:500 12.5px 'Jost','Inter',sans-serif;color:var(--txt);cursor:pointer}
+.ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.ai-chip{border:1px solid rgba(185,140,95,.4);background:#fff;color:var(--txt);border-radius:999px;padding:8px 12px;font:500 13px 'Jost','Inter',sans-serif;cursor:pointer;text-align:left}
+.ai-chip:active{background:var(--blush2)}
+.ai-form{display:flex;gap:8px;align-items:flex-end;margin-top:12px;position:sticky;bottom:0;background:var(--sheet);padding-top:6px}
+.ai-form textarea{min-height:48px;max-height:140px;resize:none;padding:12px 14px}
+.ai-form .btn{flex:0 0 52px;height:48px;padding:0;font-size:18px}
+.ai-pensa{display:inline-flex;gap:4px}
+.ai-pensa i{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 1s infinite}
+.ai-pensa i:nth-child(2){animation-delay:.2s}.ai-pensa i:nth-child(3){animation-delay:.4s}
+.brand>div{min-width:0}
+.brand h1,.brand p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:440px){ .cloud-dot span{display:none} .cloud-dot{padding:9px} }
