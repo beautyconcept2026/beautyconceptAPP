@@ -51,6 +51,8 @@ const SUGGERIMENTI = [
 ];
 
 let ai = null, F = null, chat = null, modelloIdx = 0, storia = [], occupato = false;
+const ATTESA = (window.__attesaTest || 25000); // ms massimi di attesa
+const conTempo = (p, ms, msg) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error(msg)), ms))]);
 
 async function caricaSdk() {
   if (F) return F;
@@ -58,7 +60,7 @@ async function caricaSdk() {
   for (const v of VERSIONI_SDK) {
     try {
       const base = `https://www.gstatic.com/firebasejs/${v}/`;
-      const [a, b] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-ai.js')]);
+      const [a, b] = await conTempo(Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-ai.js')]), ATTESA, 'caricamento libreria AI non riuscito');
       F = { ...a, ...b };
       return F;
     } catch (e) { ultimoErr = e; }
@@ -160,11 +162,24 @@ async function invia() {
     let risposta = '';
     for (let tentativo = 0; tentativo < MODELLI.length; tentativo++) {
       try {
-        const res = await chat.sendMessageStream(testo);
-        for await (const pezzo of res.stream) {
-          risposta += pezzo.text();
-          bolla.innerHTML = formatta(risposta);
-          scorri();
+        try {
+          // risposta "in diretta", ma con un tempo massimo
+          const res = await conTempo(chat.sendMessageStream(testo), ATTESA, 'tempo');
+          const it = res.stream[Symbol.asyncIterator]();
+          while (true) {
+            const { value, done } = await conTempo(it.next(), ATTESA, 'tempo');
+            if (done) break;
+            risposta += value.text();
+            bolla.innerHTML = formatta(risposta);
+            scorri();
+          }
+        } catch (e) {
+          if (!(e && e.message === 'tempo') || risposta) throw e;
+          // nessuna risposta in tempo: riprova senza diretta
+          bolla.innerHTML = '<span class="ai-pensa"><i></i><i></i><i></i></span> <small style="color:var(--mut)">ci sto mettendo un po\'…</small>';
+          nuovoModello();
+          const r = await conTempo(chat.sendMessage(testo), ATTESA * 2, 'tempo');
+          risposta = r.response.text();
         }
         localStorage.setItem(KEY_MODELLO, MODELLI[modelloIdx]);
         break;
@@ -184,11 +199,14 @@ async function invia() {
   } catch (e) {
     console.error(e);
     const m = String(e && (e.message || e));
-    bolla.innerHTML = /api.*(not|has not been) (been )?(used|enabled)|SERVICE_DISABLED|PERMISSION_DENIED|ai-logic|firebasevertexai|API_NOT_ENABLED/i.test(m)
-      ? '⚙️ L\'assistente non è ancora attivo. Davide deve attivarlo in Firebase (sezione AI Logic).'
+    const testoErr = /api.*(not|has not been) (been )?(used|enabled)|SERVICE_DISABLED|PERMISSION_DENIED|ai-logic|firebasevertexai|firebaseml|API_NOT_ENABLED|403/i.test(m)
+      ? '⚙️ L\'assistente non è ancora attivo. Davide deve attivarlo in Firebase (sezione AI Logic → Gemini Developer API).'
       : /quota|429|RESOURCE_EXHAUSTED/i.test(m)
         ? '⏳ Troppe domande in poco tempo: riprova tra un minuto.'
-        : '😕 Non riesco a rispondere ora. Controlla la connessione e riprova.';
+        : m === 'tempo'
+          ? '⌛ L\'assistente non ha risposto in tempo. Riprova tra poco; se succede ancora, manda uno screenshot a Davide.'
+          : '😕 Non riesco a rispondere ora. Riprova tra poco; se succede ancora, manda uno screenshot a Davide.';
+    bolla.innerHTML = esc(testoErr) + '<br><small style="color:var(--mut);word-break:break-all">Dettaglio: ' + esc(m.slice(0, 220)) + ' · ' + esc(MODELLI[modelloIdx]) + '</small>';
     chat = null; // al prossimo messaggio riparte pulito
   } finally {
     occupato = false; scorri();

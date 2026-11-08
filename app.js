@@ -354,7 +354,7 @@ function viewImpostazioni() {
       </div>
     </div>
     <button class="btn ghost block small" data-aggiorna style="margin-top:22px">🔄 Aggiorna app all'ultima versione</button>
-    <p class="hint" style="text-align:center;margin:10px 0 4px">Beauty Concept · v1.9</p>`;
+    <p class="hint" style="text-align:center;margin:10px 0 4px">Beauty Concept · v1.10</p>`;
 }
 
 function bindImpostazioni() {
