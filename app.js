@@ -257,8 +257,9 @@ function cardRem(a) {
     <div class="what">${esc(a.servizioNome)} · ${a.durata} min</div>
     ${sent.length ? `<div class="sentline">Promemoria inviato: <b>${sent.join(' + ')}</b></div>` : ''}
     <div class="grid2">
-      <a class="btn wa small ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="promemoria:wa" data-id="${a.id}">${IC_WA} WhatsApp <span class="tick">✓</span></a>
-      <a class="btn sms small ${inv.sms ? 'sent' : ''}" href="${smsUrl(c.tel, txt)}" data-sent="promemoria:sms" data-id="${a.id}">${IC_SMS} SMS <span class="tick">✓</span></a>
+      ${telValido(c.tel) ? `<a class="btn wa small ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="promemoria:wa" data-id="${a.id}">${IC_WA} WhatsApp <span class="tick">✓</span></a>
+      <a class="btn sms small ${inv.sms ? 'sent' : ''}" href="${smsUrl(c.tel, txt)}" data-sent="promemoria:sms" data-id="${a.id}">${IC_SMS} SMS <span class="tick">✓</span></a>`
+      : `<button class="btn small" data-cli="${c.id || ''}" style="grid-column:span 2">📞 Manca il numero: aggiungilo</button>`}
       <button class="btn ok small" data-act="conferma" data-id="${a.id}">✓ Ha confermato</button>
       <button class="btn ko small" data-act="disdici" data-id="${a.id}">✕ Disdetto</button>
     </div></div>`;
@@ -278,7 +279,7 @@ function viewClienti() {
       const n = db.appuntamenti.filter(a => a.clienteId === c.id && a.stato !== 'disdetto').length;
       const ini = c.nome.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
       return `<button class="card cli" data-cli="${c.id}"><span class="avatar">${esc(ini)}</span>
-        <span class="info"><b>${esc(c.nome)}</b><span>${esc(c.tel)} · ${n} appuntament${n === 1 ? 'o' : 'i'}</span></span></button>`;
+        <span class="info"><b>${esc(c.nome)}</b><span>${c.tel ? esc(c.tel) : '<em style="color:var(--ko);font-style:normal">Senza numero</em>'} · ${n} appuntament${n === 1 ? 'o' : 'i'}</span></span></button>`;
     }).join('') : `<div class="empty"><div class="ic">👩🏻</div>${q ? 'Nessun risultato.' : 'Nessuna cliente ancora.<br>Vengono aggiunte da sole quando crei un appuntamento.'}</div>`}`;
 }
 
@@ -324,6 +325,12 @@ function viewImpostazioni() {
       ${link ? `<div class="okbox">✓ Link attivo:<br>${esc(link)}</div>` : `<div class="warnbox">⚠️ L'app è aperta dal computer (file locale): le clienti non potrebbero aprire il link. Pubblica l'app online (es. GitHub Pages) oppure scrivi qui sotto l'indirizzo della pagina <b>appuntamento.html</b>. Finché manca, i messaggi partono senza link.</div>`}
       <label>Indirizzo pagina cliente (lascia vuoto se l'app è già online)</label>
       <input data-set="linkBase" value="${esc(s.linkBase)}" placeholder="https://tuonome.github.io/beauty-concept/appuntamento.html" inputmode="url">
+    </div>
+
+    <div class="section-t">Importa da Google Calendar</div>
+    <div class="card">
+      <p class="hint" style="margin-top:0">Porta nell'app gli appuntamenti che hai su Google Calendar. Da computer: calendar.google.com → ⚙️ Impostazioni → Importa ed esporta → Esporta. Poi scegli qui il file scaricato (.zip o .ics).</p>
+      <label class="btn block" style="margin:10px 0 0;color:var(--txt);font-size:15px">📅 Scegli il file di Google Calendar<input type="file" id="gcalFile" accept=".zip,.ics,text/calendar,application/zip" hidden></label>
     </div>
 
     <div class="section-t">Cloud e backup automatici</div>
@@ -437,7 +444,7 @@ function salvaAppt(id) {
   const servizioNome = s ? s.nome : $('#fSrvAltro').value.trim();
   const durata = Math.max(5, Number($('#fDur').value) || 30);
   if (!nome) return toast('Scrivi il nome della cliente');
-  if (!telValido(tel)) return toast('Controlla il numero di cellulare');
+  if (tel && !telValido(tel)) return toast('Controlla il numero di cellulare');
   if (!servizioNome) return toast('Scegli o scrivi il servizio');
   if (!v || !o) return toast('Inserisci giorno e ora');
   const inizio = new Date(`${v}T${o}`).toISOString();
@@ -472,12 +479,14 @@ function sheetInvio(id, tipo, spostato) {
   const noLink = tipo === 'conferma' && !baseLink();
   openSheet(`
     <h3>${tipo === 'conferma' ? (spostato ? 'Appuntamento spostato' : 'Invia la conferma') : 'Invia il promemoria'}</h3>
-    <p class="lead">A <b>${esc(c.nome)}</b> · ${esc(c.tel)}<br>Tocca WhatsApp, invia, poi torna qui e tocca SMS.</p>
+    <p class="lead">A <b>${esc(c.nome)}</b>${c.tel ? ' · ' + esc(c.tel) : ''}<br>Tocca WhatsApp, invia, poi torna qui e tocca SMS.</p>
     <div class="preview">${esc(txt)}</div>
+    ${!telValido(c.tel) ? `<div class="warnbox">⚠️ Manca il numero di cellulare di ${esc(c.nome)}.</div>
+      <button class="btn pri block" data-cli="${c.id || ''}">📞 Aggiungi il numero</button>` : ''}
     ${noLink ? '<div class="warnbox">⚠️ Il link al calendario non è attivo (vedi Impostazioni). Il messaggio parte comunque senza link.</div>' : ''}
     <div class="stack">
-      <a class="btn wa block ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="${tipo}:wa" data-id="${a.id}">${IC_WA} Invia su WhatsApp <span class="tick">✓</span></a>
-      <a class="btn sms block ${inv.sms ? 'sent' : ''}" href="${smsUrl(c.tel, txt)}" data-sent="${tipo}:sms" data-id="${a.id}">${IC_SMS} Invia SMS <span class="tick">✓</span></a>
+      ${telValido(c.tel) ? `<a class="btn wa block ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="${tipo}:wa" data-id="${a.id}">${IC_WA} Invia su WhatsApp <span class="tick">✓</span></a>
+      <a class="btn sms block ${inv.sms ? 'sent' : ''}" href="${smsUrl(c.tel, txt)}" data-sent="${tipo}:sms" data-id="${a.id}">${IC_SMS} Invia SMS <span class="tick">✓</span></a>` : ''}
       <button class="btn ghost block" data-act="chiudi">Fatto</button>
     </div>`);
 }
@@ -523,8 +532,8 @@ function sheetCliente(id) {
     <button class="btn pri block" data-act="salvaCli" data-id="${c ? c.id : ''}" style="margin-top:16px">Salva</button>
     ${c ? `
       <div class="grid2">
-        <a class="btn wa" href="https://wa.me/${telIntl(c.tel)}" target="_blank" rel="noopener">${IC_WA} Scrivi</a>
-        <a class="btn" href="tel:+${telIntl(c.tel)}">📞 Chiama</a>
+        ${c.tel ? `<a class="btn wa" href="https://wa.me/${telIntl(c.tel)}" target="_blank" rel="noopener">${IC_WA} Scrivi</a>
+        <a class="btn" href="tel:+${telIntl(c.tel)}">📞 Chiama</a>` : ''}
         <button class="btn" data-act="nuovoPer" data-id="${c.id}" style="grid-column:span 2">+ Nuovo appuntamento per lei</button>
       </div>
       ${storico.length ? `<div class="section-t">Ultimi appuntamenti</div>${storico.map(a => `<div class="kv"><span>${new Date(a.inizio).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: '2-digit' })} · ${esc(a.servizioNome)}</span><b class="chip ${a.stato}">${STATI[a.stato]}</b></div>`).join('')}` : ''}
@@ -535,7 +544,7 @@ function salvaCli(id) {
   const nome = $('#cNome').value.trim().replace(/\s+/g, ' ');
   const tel = $('#cTel').value.trim();
   if (!nome) return toast('Scrivi il nome');
-  if (!telValido(tel)) return toast('Controlla il numero di cellulare');
+  if (tel && !telValido(tel)) return toast('Controlla il numero di cellulare');
   const doppio = db.clienti.find(x => x.nome.toLowerCase() === nome.toLowerCase() && x.id !== id);
   if (doppio) return toast('Esiste già una cliente con questo nome');
   if (id) Object.assign(cliente(id), { nome, tel, note: $('#cNote').value.trim() });

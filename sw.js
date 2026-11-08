@@ -1,7 +1,7 @@
 /* Beauty Concept – service worker: l'app funziona anche senza internet */
-const CACHE = 'beauty-concept-v4';
+const CACHE = 'beauty-concept-v5';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
-const ASSETS = ['./', './index.html', './style.css', './app.js', './cloud.js', './firebase-config.js',
+const ASSETS = ['./', './index.html', './style.css', './app.js', './import-gcal.js', './cloud.js', './firebase-config.js',
   './appuntamento.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   './logo.png', './logo-256.png',
   FB + 'firebase-app.js', FB + 'firebase-auth.js', FB + 'firebase-firestore.js'];
