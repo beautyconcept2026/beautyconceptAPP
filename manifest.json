@@ -1,0 +1,16 @@
+{
+  "name": "Beauty Concept · Agenda",
+  "short_name": "Beauty Concept",
+  "description": "Agenda del centro estetico con conferme e promemoria alle clienti",
+  "lang": "it",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7eeec",
+  "theme_color": "#f7eeec",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

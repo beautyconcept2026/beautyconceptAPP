@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7eeec">
+  <meta name="robots" content="noindex">
+  <title>Il tuo appuntamento</title>
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#f7eeec;--blush:#e9c7c5;--blush2:#f2dcda;--card:#fff;--line:rgba(120,80,70,.13);--txt:#1d1517;--mut:#8c7573;--gold:#b98c5f;--gold2:#d9b48f;--serif:'Cormorant Garamond',Georgia,serif;--shadow:0 18px 44px -20px rgba(120,70,60,.45)}
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{background:var(--bg);color:var(--txt);font-family:'Jost',system-ui,-apple-system,sans-serif;min-height:100%}
+    body{display:flex;align-items:center;justify-content:center;padding:calc(26px + env(safe-area-inset-top)) 18px calc(28px + env(safe-area-inset-bottom));overflow-x:hidden}
+    body::before,body::after{content:'';position:fixed;z-index:-1;border-radius:50%;filter:blur(80px);pointer-events:none}
+    body::before{width:420px;height:420px;background:var(--blush);opacity:.8;top:-150px;right:-130px;animation:f 16s ease-in-out infinite}
+    body::after{width:360px;height:360px;background:#f0d9bf;opacity:.65;bottom:-100px;left:-140px;animation:f 20s ease-in-out infinite reverse}
+    @keyframes f{50%{transform:translate(-40px,50px) scale(1.12)}}
+    .wrap{width:100%;max-width:440px;animation:in .7s cubic-bezier(.2,.9,.3,1)}
+    @keyframes in{from{opacity:0;transform:translateY(16px)}}
+    .logo{display:block;width:150px;height:150px;border-radius:50%;margin:0 auto 14px;box-shadow:0 18px 40px -16px rgba(185,140,95,.7);background:#fff}
+    .studio{text-align:center;font-family:var(--serif);font-size:12.5px;letter-spacing:4px;text-transform:uppercase;color:var(--txt);margin-bottom:22px;font-weight:600}
+    .hello{text-align:center;color:var(--gold);font-size:14px;letter-spacing:1px}
+    h1{text-align:center;font-family:var(--serif);font-weight:600;font-size:31px;margin:2px 0 20px;line-height:1.1}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}
+    .date{display:flex;gap:16px;align-items:center}
+    .cal{flex:0 0 80px;border-radius:20px;overflow:hidden;text-align:center;background:#fff;border:1px solid rgba(185,140,95,.4)}
+    .cal small{display:block;background:var(--txt);color:var(--gold2);font-size:11.5px;font-weight:600;letter-spacing:2px;text-transform:uppercase;padding:5px 0}
+    .cal b{display:block;font-family:var(--serif);font-size:40px;font-weight:700;padding:2px 0 6px;line-height:1.05}
+    .date .t{font-size:15px;color:var(--mut)}
+    .date .h{font-family:var(--serif);font-size:38px;font-weight:700;line-height:1.05}
+    .rows{margin-top:18px;border-top:1px solid var(--line)}
+    .r{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px}
+    .r span{color:var(--mut)}.r b{text-align:right;font-weight:500}
+    .r a{color:var(--gold);text-decoration:none;font-weight:500;text-align:right}
+    .btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;border:0;border-radius:18px;padding:16px;font:500 16px 'Jost',sans-serif;color:var(--txt);background:var(--blush2);text-decoration:none;cursor:pointer;margin-top:10px;transition:transform .15s;letter-spacing:.2px}
+    .btn:active{transform:scale(.97)}
+    .btn.pri{background:var(--txt);color:#fff;box-shadow:0 14px 30px -14px rgba(29,21,23,.7)}
+    .btn.pri svg{color:var(--gold2)}
+    .btn svg{width:20px;height:20px}
+    .btn.wa{background:#25d366;color:#04311a;font-weight:600}
+    .note{font-size:13px;color:var(--mut);text-align:center;margin-top:16px;line-height:1.55}
+    .bell{display:flex;gap:10px;align-items:center;background:#fbf3ea;border:1px solid rgba(185,140,95,.35);border-radius:16px;padding:12px 14px;margin-top:18px;font-size:13.5px;line-height:1.45}
+    .bell i{font-style:normal;font-size:20px}
+    .err{text-align:center;color:var(--mut);line-height:1.6}
+    .past{background:#fbe3e6;border:1px solid #f3c3ca;color:#c2465a;border-radius:14px;padding:10px 12px;font-size:13.5px;text-align:center;margin-top:14px}
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app"></div>
+
+<script>
+'use strict';
+(function () {
+  var q = new URLSearchParams(location.search);
+  var nome = q.get('n') || '', servizio = q.get('s') || 'Appuntamento', t = q.get('t') || '',
+      durata = Math.max(5, parseInt(q.get('m'), 10) || 60), centro = q.get('c') || 'Beauty Concept',
+      indirizzo = q.get('a') || '', tel = (q.get('p') || '').replace(/\D/g, '');
+  var app = document.getElementById('app');
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+
+  var m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(t);
+  if (!m) {
+    app.innerHTML = '<img class="logo" src="logo.png" alt=""><p class="err">Link dell’appuntamento non valido.<br>Contatta il centro per i dettagli.</p>';
+    return;
+  }
+  var inizio = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+  var fine = new Date(inizio.getTime() + durata * 60000);
+  var ini = centro.split(/\s+/).map(function (p) { return p[0]; }).join('').slice(0, 2).toUpperCase();
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var passato = fine < new Date();
+  document.title = 'Appuntamento · ' + centro;
+
+  /* ---- file calendario (.ics) con promemoria 72 e 48 ore prima ---- */
+  function icsDate(d) { return d.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'; }
+  function icsTxt(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+  function fold(line) { // righe max 75 caratteri come da standard
+    var out = [], s = line;
+    while (s.length > 74) { out.push(s.slice(0, 74)); s = ' ' + s.slice(74); }
+    out.push(s); return out.join('\r\n');
+  }
+  var titolo = servizio + ' · ' + centro;
+  var descr = 'Appuntamento da ' + centro + ': ' + servizio + '.' + (tel ? ' Per spostarlo contatta il centro: +' + tel : '');
+  function alarm(ore) {
+    return ['BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsTxt('Promemoria: ' + titolo), 'TRIGGER:-PT' + ore + 'H', 'END:VALARM'];
+  }
+  var ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Beauty Concept//Agenda//IT', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    'UID:' + t + '-' + encodeURIComponent(nome || 'cliente') + '@beautyconcept',
+    'DTSTAMP:' + icsDate(new Date()),
+    'DTSTART:' + icsDate(inizio),
+    'DTEND:' + icsDate(fine),
+    'SUMMARY:' + icsTxt(titolo),
+    'DESCRIPTION:' + icsTxt(descr),
+    indirizzo ? 'LOCATION:' + icsTxt(indirizzo) : null
+  ].concat(alarm(72), alarm(48), ['END:VEVENT', 'END:VCALENDAR'])
+   .filter(Boolean).map(fold).join('\r\n');
+
+  function scaricaIcs() {
+    if (isIOS) { // Safari su iPhone apre direttamente "Aggiungi al calendario"
+      location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+      return;
+    }
+    var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'appuntamento-' + centro.replace(/\W+/g, '-').toLowerCase() + '.ics';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 3000);
+  }
+
+  var gUrl = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    + '&text=' + encodeURIComponent(titolo)
+    + '&dates=' + icsDate(inizio) + '/' + icsDate(fine)
+    + '&details=' + encodeURIComponent(descr)
+    + (indirizzo ? '&location=' + encodeURIComponent(indirizzo) : '');
+
+  var giorno = inizio.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+  var giornoCap = giorno.charAt(0).toUpperCase() + giorno.slice(1);
+  var ora = inizio.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  var mese = inizio.toLocaleDateString('it-IT', { month: 'short' }).replace('.', '');
+
+  var IC_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5"/></svg>';
+  var IC_G = '<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2-1.9 3.2-4.7 3.2-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1-3.7 1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.1a11 11 0 0 0 0 9.8l3.7-2.8z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7.1l3.7 2.8c.9-2.6 3.3-4.5 6.2-4.5z"/></svg>';
+  var IC_WA = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm4.5 12.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>';
+
+  var appleBtn = '<button class="btn ' + (isIOS ? 'pri' : '') + '" id="ics">' + IC_CAL + (isIOS ? 'Aggiungi al calendario' : 'Scarica per il calendario') + '</button>';
+  var googleBtn = '<a class="btn ' + (isIOS ? '' : 'pri') + '" href="' + gUrl + '" target="_blank" rel="noopener">' + IC_G + 'Aggiungi a Google Calendar</a>';
+
+  app.innerHTML =
+    '<img class="logo" src="logo.png" alt="' + esc(centro) + '">' +
+    '<p class="studio">Beauty &amp; Nails Studio</p>' +
+    '<p class="hello">' + (nome ? 'Ciao ' + esc(nome) + ' 💕' : 'Ciao 💕') + '</p>' +
+    '<h1>Il tuo appuntamento</h1>' +
+    '<div class="card">' +
+      '<div class="date"><div class="cal"><small>' + esc(mese) + '</small><b>' + inizio.getDate() + '</b></div>' +
+      '<div><div class="t">' + esc(giorno) + '</div><div class="h">' + esc(ora) + '</div></div></div>' +
+      '<div class="rows">' +
+        '<div class="r"><span>Trattamento</span><b>' + esc(servizio) + '</b></div>' +
+        '<div class="r"><span>Durata</span><b>' + durata + ' min</b></div>' +
+        (indirizzo ? '<div class="r"><span>Dove</span><a href="https://maps.google.com/?q=' + encodeURIComponent(indirizzo) + '" target="_blank" rel="noopener">' + esc(indirizzo) + '</a></div>' : '') +
+      '</div>' +
+      (passato ? '<div class="past">Questo appuntamento è già passato.</div>' :
+        '<div class="bell"><i>🔔</i><span>' + (isIOS
+          ? 'Salvalo nel calendario: il telefono ti avviserà <b>3 giorni</b> e <b>2 giorni</b> prima.'
+          : 'Salvalo nel calendario così non te lo dimentichi. Ti scriveremo anche noi qualche giorno prima.') + '</span></div>' +
+        (isIOS ? appleBtn + googleBtn : googleBtn + appleBtn)) +
+      (tel ? '<a class="btn wa" href="https://wa.me/' + tel + '?text=' + encodeURIComponent('Ciao, sono ' + nome + ', ti scrivo per il mio appuntamento di ' + giorno + ' alle ' + ora + '.') + '" target="_blank" rel="noopener">' + IC_WA + 'Devo spostarlo? Scrivici</a>' : '') +
+    '</div>' +
+    '<p class="note">Se hai un imprevisto avvisaci almeno 48 ore prima,<br>così possiamo dare il posto a un’altra cliente. Grazie!</p>';
+
+  var b = document.getElementById('ics');
+  if (b) b.addEventListener('click', scaricaIcs);
+})();
+</script>
+</body>
+</html>
