@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.17';
+const VERSIONE = '1.18';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -688,7 +688,7 @@ function viewImpostazioni() {
       <label>P.IVA / Codice fiscale</label><input data-set="piva" value="${esc(s.piva)}">
       <label>Email per le richieste privacy</label><input data-set="email" type="email" inputmode="email" value="${esc(s.email)}">
       <label>Messaggio con l'informativa</label><textarea data-set="msgPrivacy">${esc(s.msgPrivacy)}</textarea>
-      ${linkPrivacy() ? `<a class="btn ghost block small" href="${esc(linkPrivacy())}" target="_blank" rel="noopener" style="margin-top:12px">📄 Vedi l'informativa</a>` : ''}
+      ${linkPrivacy() ? `<button class="btn ghost block small" data-act="vediPrivacy" style="margin-top:12px">📄 Vedi l'informativa</button>` : ''}
       <p class="hint">Testo standard per centri estetici: fallo controllare dal vostro consulente o commercialista. ${(() => { const n = db.clienti.filter(c => !c.privacy).length; return n ? `<br><b>${n}</b> client${n === 1 ? 'e' : 'i'} senza consenso: le trovi in Clienti → "Senza consenso privacy".` : ''; })()}</p>
     </div>
 
@@ -1186,6 +1186,12 @@ document.addEventListener('click', e => {
       } break;
     case 'export': esporta(); break;
     case 'filtroCli': filtroCli = id; render(); break;
+    case 'vediPrivacy':
+      openSheet(`<h3>Informativa privacy</h3>
+        <p class="lead">Così la vedono le clienti quando aprono il link.</p>
+        <iframe class="privacy-frame" src="${esc(linkPrivacy())}&dentro=1" title="Informativa privacy"></iframe>
+        <button class="btn pri block" data-act="chiudi" style="margin-top:12px">Chiudi</button>`);
+      break;
     case 'vistaAg': vistaAg = id; try { localStorage.setItem('beautyconcept.vista', id); } catch (x) {} render(); break;
     case 'settSposta': { const d = parseDay(selDay); d.setDate(d.getDate() + Number(id)); selDay = dayKey(d); render(); break; }
     case 'apriGiorno': selDay = id; vistaAg = 'giorno'; try { localStorage.setItem('beautyconcept.vista', 'giorno'); } catch (x) {} render(); break;

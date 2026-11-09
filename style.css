@@ -301,3 +301,4 @@ label.chk small{display:block;color:var(--ok);font-size:12.5px;margin-top:2px}
 .wk-fantasma small{color:var(--gold2) !important}
 .wk-ora{position:absolute;left:0;right:0;height:2px;background:var(--ko);z-index:3;pointer-events:none}
 .wk-ora::before{content:'';position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--ko)}
+.privacy-frame{width:100%;height:62vh;border:1px solid var(--line);border-radius:16px;background:var(--bg)}
