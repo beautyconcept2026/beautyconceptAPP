@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.14';
+const VERSIONE = '1.15';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -40,6 +40,12 @@ Per poterti seguire al meglio e mandarti i promemoria degli appuntamenti, ti inv
 Rispondi OK per dare il consenso 🙏
 Se vuoi ricevere anche le nostre offerte e promozioni, scrivi OK OFFERTE 💕`;
 
+const MSG_ATTESA = `Ciao {nome}! 🌸
+Si è appena liberato un posto da {centro}:
+📅 {data} alle {ora}
+
+Ti interessa per {servizio}? Rispondimi appena puoi, il posto va a chi conferma per prima 😉`;
+
 const DEFAULT = {
   settings: {
     nome: 'Beauty Concept',
@@ -50,6 +56,7 @@ const DEFAULT = {
     msgConferma: MSG_CONFERMA,
     msgPromemoria: MSG_PROMEMORIA,
     msgPrivacy: MSG_PRIVACY,
+    msgAttesa: MSG_ATTESA,
     titolare: '',
     piva: '',
     email: ''
@@ -63,7 +70,8 @@ const DEFAULT = {
     { id: 's6', nome: 'Massaggio', durata: 50 }
   ],
   clienti: [],
-  appuntamenti: []
+  appuntamenti: [],
+  attesa: []
 };
 
 const STATI = { prenotato: 'Da confermare', confermato: 'Confermato', disdetto: 'Disdetto' };
@@ -197,11 +205,38 @@ function sovrapposizioni(inizio, durata, escludiId) {
   });
 }
 
+/* ---------- lista d'attesa ---------- */
+const FASCE = {
+  qualsiasi: { nome: 'Qualsiasi orario', ok: () => true },
+  mattina: { nome: 'Mattina (prima delle 13)', ok: h => h < 13 },
+  pomeriggio: { nome: 'Pomeriggio (13–17)', ok: h => h >= 13 && h < 17 },
+  sera: { nome: 'Tardo pomeriggio (dalle 17)', ok: h => h >= 17 }
+};
+const attesaAttive = () => (db.attesa || []).filter(x => x.stato !== 'sistemata');
+function periodoTesto(x) {
+  if (x.dal && x.al) return x.dal === x.al ? `il ${fmtBreve(x.dal)}` : `dal ${fmtBreve(x.dal)} al ${fmtBreve(x.al)}`;
+  if (x.dal) return `dal ${fmtBreve(x.dal)}`;
+  if (x.al) return `entro il ${fmtBreve(x.al)}`;
+  return 'quando capita';
+}
+// clienti in attesa adatte a un posto libero (stesso servizio prima, poi le più vecchie)
+function compatibili(slot) {
+  const d = new Date(slot.inizio), k = dayKey(d), h = d.getHours();
+  if (+d < Date.now()) return [];
+  const norm = s => String(s || '').toLowerCase().trim();
+  return attesaAttive()
+    .filter(x => x.clienteId !== slot.clienteId)
+    .filter(x => (!x.dal || x.dal <= k) && (!x.al || x.al >= k))
+    .filter(x => (FASCE[x.fascia] || FASCE.qualsiasi).ok(h))
+    .sort((x, y) => (norm(y.servizioNome) === norm(slot.servizioNome)) - (norm(x.servizioNome) === norm(slot.servizioNome)) || String(x.creato).localeCompare(String(y.creato)));
+}
+
 /* ---------- stato interfaccia ---------- */
 let tab = 'agenda';
 let selDay = dayKey(new Date());
 let cerca = '';
 let filtroCli = 'tutte';
+let vistaCli = 'rubrica';
 
 /* ---------- icone ---------- */
 const IC_WA = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>';
@@ -318,7 +353,10 @@ function viewClienti() {
     .filter(filtro.f)
     .filter(c => !q || c.nome.toLowerCase().includes(q) || String(c.tel).includes(q))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
-  return `
+  const nAtt = attesaAttive().length;
+  const sel = `<div class="seg"><button class="${vistaCli === 'rubrica' ? 'on' : ''}" data-act="vistaCli" data-id="rubrica">Rubrica</button><button class="${vistaCli === 'attesa' ? 'on' : ''}" data-act="vistaCli" data-id="attesa">Lista d'attesa${nAtt ? ` <small>${nAtt}</small>` : ''}</button></div>`;
+  if (vistaCli === 'attesa') return sel + viewAttesa();
+  return sel + `
     <div class="h2">Clienti</div>
     <p class="sub">${db.clienti.length} in rubrica</p>
     <div class="chips">${Object.entries(FILTRI_CLI).map(([k, v]) => `<button class="chipf ${k === filtroCli ? 'on' : ''}" data-act="filtroCli" data-id="${k}">${v.nome} <small>${db.clienti.filter(v.f).length}</small></button>`).join('')}</div>
@@ -329,6 +367,21 @@ function viewClienti() {
       return `<button class="card cli" data-cli="${c.id}"><span class="avatar">${esc(ini)}</span>
         <span class="info"><b>${esc(c.nome)}</b><span>${c.tel ? esc(c.tel) : '<em style="color:var(--ko);font-style:normal">Senza numero</em>'} · ${n} appuntament${n === 1 ? 'o' : 'i'}</span></span>${c.privacy ? '' : '<span class="nopriv" title="Consenso privacy mancante">🔒</span>'}</button>`;
     }).join('') : `<div class="empty"><div class="ic">👩🏻</div>${q ? 'Nessun risultato.' : 'Nessuna cliente ancora.<br>Vengono aggiunte da sole quando crei un appuntamento.'}</div>`}`;
+}
+
+function viewAttesa() {
+  const list = attesaAttive().sort((x, y) => String(x.creato).localeCompare(String(y.creato)));
+  return `
+    <div class="h2">Lista d'attesa</div>
+    <p class="sub">Clienti che vorrebbero un posto prima. Quando segni un appuntamento come <b>Disdetto</b>, l'app ti propone subito quelle adatte.</p>
+    ${list.length ? list.map(x => {
+      const c = cliente(x.clienteId) || { nome: 'Cliente eliminata' };
+      return `<button class="card att" data-act="editAttesa" data-id="${x.id}">
+        <div class="att-top"><b>${esc(c.nome)}</b><span class="chip prenotato">⏳ ${esc(periodoTesto(x))}</span></div>
+        <div class="att-info">${esc(x.servizioNome || 'Qualsiasi servizio')} · ${esc((FASCE[x.fascia] || FASCE.qualsiasi).nome)}</div>
+        ${x.note ? `<div class="att-note">${esc(x.note)}</div>` : ''}
+      </button>`;
+    }).join('') : `<div class="empty"><div class="ic">⏳</div>Nessuna cliente in attesa.<br>Tocca <b>+</b> per aggiungerne una.</div>`}`;
 }
 
 /* ---------- Impostazioni ---------- */
@@ -375,6 +428,8 @@ function viewImpostazioni() {
       <textarea data-set="msgConferma">${esc(s.msgConferma)}</textarea>
       <label>Promemoria (dalla sezione "Da ricordare")</label>
       <textarea data-set="msgPromemoria">${esc(s.msgPromemoria)}</textarea>
+      <label>Posto libero (alle clienti in lista d'attesa)</label>
+      <textarea data-set="msgAttesa">${esc(s.msgAttesa)}</textarea>
       <p class="hint">Parole che si sostituiscono da sole: <code>{nome}</code> <code>{servizio}</code> <code>{data}</code> <code>{ora}</code> <code>{centro}</code> <code>{indirizzo}</code> <code>{link}</code></p>
       <button class="btn ghost block small" data-act="resetMsg" style="margin-top:12px">Ripristina testi originali</button>
     </div>
@@ -582,7 +637,8 @@ function sheetDettaglio(id) {
       <button class="btn" data-act="invia" data-tipo="conferma" data-id="${a.id}">📩 Conferma</button>
       <button class="btn" data-act="invia" data-tipo="promemoria" data-id="${a.id}">🔔 Promemoria</button>
       ${a.stato === 'disdetto'
-        ? `<button class="btn ok" data-act="ripristina" data-id="${a.id}" style="grid-column:span 2">↺ Ripristina appuntamento</button>`
+        ? `<button class="btn ok" data-act="ripristina" data-id="${a.id}" style="grid-column:span 2">↺ Ripristina appuntamento</button>
+           ${+new Date(a.inizio) > Date.now() ? `<button class="btn pri" data-act="proponi" data-id="${a.id}" style="grid-column:span 2">⏳ Proponi il posto alla lista d'attesa</button>` : ''}`
         : `${a.stato !== 'confermato' ? `<button class="btn ok" data-act="conferma" data-id="${a.id}">✓ Confermato</button>` : `<button class="btn" data-act="ripristina" data-id="${a.id}">↺ Da confermare</button>`}
            <button class="btn ko" data-act="disdici" data-id="${a.id}">✕ Disdetto</button>`}
       <button class="btn ghost" data-act="modifica" data-id="${a.id}">✏️ Modifica</button>
@@ -613,6 +669,7 @@ function sheetCliente(id) {
         ${c.tel ? `<a class="btn wa" href="https://api.whatsapp.com/send?phone=${telIntl(c.tel)}" target="_blank" rel="noopener">${IC_WA} Scrivi</a>
         <a class="btn" href="tel:+${telIntl(c.tel)}">📞 Chiama</a>` : ''}
         <button class="btn" data-act="nuovoPer" data-id="${c.id}" style="grid-column:span 2">+ Nuovo appuntamento per lei</button>
+        <button class="btn ghost" data-act="nuovaAttesa" data-id="${c.id}" style="grid-column:span 2">⏳ Metti in lista d'attesa</button>
       </div>
       ${storico.length ? `<div class="section-t">Ultimi appuntamenti</div>${storico.map(a => `<div class="kv"><span>${new Date(a.inizio).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: '2-digit' })} · ${esc(a.servizioNome)}</span><b class="chip ${a.stato}">${STATI[a.stato]}</b></div>`).join('')}` : ''}
       <button class="btn ghost block" data-act="delCli" data-id="${c.id}" style="margin-top:16px;color:var(--ko)">Elimina cliente</button>` : ''}`);
@@ -633,6 +690,104 @@ function salvaCli(id) {
   if (id) Object.assign(cliente(id), { nome, tel, note: $('#cNote').value.trim() }, consensi);
   else db.clienti.push({ id: uid(), nome, tel, note: $('#cNote').value.trim(), ...consensi });
   save(); closeSheet(); render(); toast('Cliente salvata');
+}
+
+/* ---------- lista d'attesa: inserimento e proposta posto ---------- */
+function formAttesa(x, clienteId) {
+  const c = x ? cliente(x.clienteId) : (clienteId ? cliente(clienteId) : null);
+  const srvId = x ? ((db.servizi.find(s => s.nome === x.servizioNome) || {}).id || (x.servizioNome ? '__altro' : '__qualsiasi')) : '__qualsiasi';
+  openSheet(`
+    <h3>${x ? 'Modifica attesa' : 'Aggiungi alla lista d\'attesa'}</h3>
+    <label>Cliente</label>
+    <input id="wNome" list="dlClientiW" autocomplete="off" placeholder="Nome e cognome" value="${esc(c ? c.nome : '')}">
+    <datalist id="dlClientiW">${db.clienti.map(y => `<option value="${esc(y.nome)}">`).join('')}</datalist>
+    <label>Cellulare</label>
+    <input id="wTel" type="tel" inputmode="tel" placeholder="333 1234567" value="${esc(c ? c.tel : '')}">
+    <label>Servizio desiderato</label>
+    <select id="wSrv">
+      <option value="__qualsiasi" ${srvId === '__qualsiasi' ? 'selected' : ''}>Qualsiasi</option>
+      ${db.servizi.map(s => `<option value="${s.id}" ${s.id === srvId ? 'selected' : ''}>${esc(s.nome)}</option>`).join('')}
+      <option value="__altro" ${srvId === '__altro' ? 'selected' : ''}>Altro…</option>
+    </select>
+    <input id="wSrvAltro" placeholder="Scrivi il servizio" style="margin-top:8px;${srvId === '__altro' ? '' : 'display:none'}" value="${esc(srvId === '__altro' ? x.servizioNome : '')}">
+    <div class="row">
+      <div><label>Dal giorno (facoltativo)</label><input id="wDal" type="date" value="${x ? x.dal || '' : oggiISO()}"></div>
+      <div><label>Al giorno (facoltativo)</label><input id="wAl" type="date" value="${x ? x.al || '' : ''}"></div>
+    </div>
+    <label>Fascia oraria</label>
+    <select id="wFascia">${Object.entries(FASCE).map(([k, v]) => `<option value="${k}" ${(x ? x.fascia : 'qualsiasi') === k ? 'selected' : ''}>${v.nome}</option>`).join('')}</select>
+    <label>Note (facoltative)</label>
+    <input id="wNote" placeholder="Es. solo il sabato" value="${esc(x ? x.note || '' : '')}">
+    <button class="btn pri block" data-act="salvaAttesa" data-id="${x ? x.id : ''}" style="margin-top:18px">${x ? 'Salva' : 'Aggiungi alla lista'}</button>
+    ${x ? `<div class="grid2">
+      <button class="btn ok" data-act="attesaFatta" data-id="${x.id}">✓ Sistemata</button>
+      <button class="btn ghost" data-act="delAttesa" data-id="${x.id}" style="color:var(--ko)">🗑 Togli</button></div>` : ''}`);
+  const wNome = $('#wNome'), wTel = $('#wTel');
+  wNome.addEventListener('input', () => { const m = db.clienti.find(y => y.nome.toLowerCase() === wNome.value.trim().toLowerCase()); if (m) wTel.value = m.tel; });
+  $('#wSrv').addEventListener('change', e => { $('#wSrvAltro').style.display = e.target.value === '__altro' ? '' : 'none'; });
+}
+function salvaAttesa(id) {
+  const nome = $('#wNome').value.trim().replace(/\s+/g, ' ');
+  const tel = $('#wTel').value.trim();
+  if (!nome) return toast('Scrivi il nome della cliente');
+  if (tel && !telValido(tel)) return toast('Controlla il numero di cellulare');
+  const sv = $('#wSrv').value;
+  const s = db.servizi.find(y => y.id === sv);
+  const servizioNome = sv === '__qualsiasi' ? '' : (s ? s.nome : $('#wSrvAltro').value.trim());
+  const dal = $('#wDal').value, al = $('#wAl').value;
+  if (dal && al && al < dal) return toast('La data finale è prima di quella iniziale');
+  let c = db.clienti.find(y => y.nome.toLowerCase() === nome.toLowerCase());
+  if (!c) { c = { id: uid(), nome, tel, note: '' }; db.clienti.push(c); }
+  else if (tel) c.tel = tel;
+  db.attesa = db.attesa || [];
+  const dati = { clienteId: c.id, servizioNome, dal, al, fascia: $('#wFascia').value, note: $('#wNote').value.trim() };
+  if (id) Object.assign(db.attesa.find(y => y.id === id), dati);
+  else db.attesa.push({ id: uid(), ...dati, stato: 'attiva', creato: new Date().toISOString(), offerte: {} });
+  save(); closeSheet(); tab = 'clienti'; vistaCli = 'attesa'; render(); toast(id ? 'Salvato' : 'Aggiunta alla lista d\'attesa ⏳');
+}
+
+function proponiPosto(apptId) {
+  const slot = appt(apptId); if (!slot) return;
+  const d = new Date(slot.inizio);
+  const cand = compatibili(slot);
+  openSheet(`
+    <h3>Si è liberato un posto</h3>
+    <p class="lead"><b>${cap(fmtData(d))}, ${fmtOra(d)}</b> · ${slot.durata} min<br>${esc(slot.servizioNome)} di ${esc((cliente(slot.clienteId) || {}).nome || '')} è stato disdetto.</p>
+    ${cand.length ? `<p class="lead" style="margin-top:-4px">Clienti in lista d'attesa adatte (${cand.length}). Scrivi a una o più, poi <b>Assegna</b> il posto a chi conferma.</p>
+      ${cand.map(x => {
+        const c = cliente(x.clienteId) || {};
+        const finto = { clienteId: x.clienteId, servizioNome: x.servizioNome || slot.servizioNome, inizio: slot.inizio, durata: slot.durata };
+        const txt = compila(db.settings.msgAttesa || MSG_ATTESA, finto);
+        const giaScritto = x.offerte && x.offerte[slot.id];
+        return `<div class="card prop">
+          <div class="att-top"><b>${esc(c.nome)}</b>${giaScritto ? '<span class="chip confermato">Scritto ✓</span>' : ''}</div>
+          <div class="att-info">${esc(x.servizioNome || 'Qualsiasi servizio')} · ${esc(periodoTesto(x))}${x.note ? ' · ' + esc(x.note) : ''}</div>
+          <div class="grid2">
+            ${telValido(c.tel) ? `<a class="btn wa small" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-offerta="${x.id}|${slot.id}">${IC_WA} WhatsApp</a>
+            <a class="btn sms small" href="${smsUrl(c.tel, txt)}" data-offerta="${x.id}|${slot.id}">${IC_SMS} SMS</a>`
+            : `<button class="btn small" data-cli="${c.id || ''}" style="grid-column:span 2">📞 Manca il numero</button>`}
+            <button class="btn pri small" data-act="assegna" data-id="${x.id}" data-slot="${slot.id}" style="grid-column:span 2">✓ Assegna a ${esc((c.nome || '').split(' ')[0])}</button>
+          </div></div>`;
+      }).join('')}`
+    : `<div class="empty" style="padding:24px 10px"><div class="ic">⏳</div>Nessuna cliente in lista d'attesa per questo giorno e orario.</div>`}
+    <button class="btn ghost block" data-act="chiudi" style="margin-top:10px">Chiudi</button>`);
+}
+function assegnaPosto(attesaId, slotId) {
+  const x = (db.attesa || []).find(y => y.id === attesaId), slot = appt(slotId);
+  if (!x || !slot) return;
+  const servizioNome = x.servizioNome || slot.servizioNome;
+  const srv = db.servizi.find(s => s.nome.toLowerCase() === servizioNome.toLowerCase());
+  const nuovo = {
+    id: uid(), clienteId: x.clienteId, servizioNome, inizio: slot.inizio,
+    durata: srv ? srv.durata : slot.durata, note: 'Dalla lista d\'attesa', stato: 'prenotato', inviato: {}, creato: new Date().toISOString()
+  };
+  if (srv && srv.prezzo != null && srv.prezzo !== '') nuovo.prezzo = Number(srv.prezzo);
+  db.appuntamenti.push(nuovo);
+  x.stato = 'sistemata'; x.sistemata = new Date().toISOString(); x.appuntamentoId = nuovo.id;
+  save();
+  selDay = dayKey(new Date(nuovo.inizio)); tab = 'agenda'; render();
+  sheetInvio(nuovo.id, 'conferma');
+  toast('Posto assegnato ✓');
 }
 
 /* ---------- backup ---------- */
@@ -672,8 +827,14 @@ function toast(m) {
    EVENTI
    ========================================================= */
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-tab],[data-day],[data-appt],[data-cli],[data-act],[data-sent]');
+  const el = e.target.closest('[data-tab],[data-day],[data-appt],[data-cli],[data-act],[data-sent],[data-offerta]');
   if (!el) return;
+  if (el.dataset.offerta) { // segna che alla cliente in attesa è stato proposto il posto
+    const [aid, sid] = el.dataset.offerta.split('|');
+    const y = (db.attesa || []).find(z => z.id === aid);
+    if (y) { y.offerte = y.offerte || {}; y.offerte[sid] = new Date().toISOString(); save(); }
+    return;
+  }
 
   if (el.dataset.sent) { // registra l'invio, il link si apre normalmente
     const a = appt(el.dataset.id);
@@ -698,7 +859,20 @@ document.addEventListener('click', e => {
     case 'invia': sheetInvio(id, el.dataset.tipo); break;
     case 'modifica': formAppt(appt(id)); break;
     case 'conferma': appt(id).stato = 'confermato'; save(); closeSheet(); render(); toast('Confermato ✓'); break;
-    case 'disdici': appt(id).stato = 'disdetto'; save(); closeSheet(); render(); toast('Disdetto: il posto è libero'); break;
+    case 'disdici': {
+      const x = appt(id); x.stato = 'disdetto'; save(); render();
+      if (compatibili(x).length) proponiPosto(id);
+      else { closeSheet(); toast('Disdetto: il posto è libero'); }
+      break;
+    }
+    case 'proponi': proponiPosto(id); break;
+    case 'assegna': assegnaPosto(id, el.dataset.slot); break;
+    case 'vistaCli': vistaCli = id; render(); break;
+    case 'editAttesa': formAttesa((db.attesa || []).find(y => y.id === id)); break;
+    case 'nuovaAttesa': formAttesa(null, id); break;
+    case 'salvaAttesa': salvaAttesa(id); break;
+    case 'attesaFatta': { const y = db.attesa.find(z => z.id === id); y.stato = 'sistemata'; y.sistemata = new Date().toISOString(); save(); closeSheet(); render(); toast('Tolta dalla lista ✓'); break; }
+    case 'delAttesa': db.attesa = db.attesa.filter(z => z.id !== id); save(); closeSheet(); render(); toast('Tolta dalla lista'); break;
     case 'ripristina': appt(id).stato = 'prenotato'; save(); closeSheet(); render(); break;
     case 'elimina':
       if (confirm('Eliminare definitivamente questo appuntamento?')) {
@@ -721,7 +895,7 @@ document.addEventListener('click', e => {
     case 'delSrv': db.servizi = db.servizi.filter(s => s.id !== id); save(); render(); break;
     case 'resetMsg':
       if (confirm('Ripristinare i testi originali dei messaggi?')) {
-        db.settings.msgConferma = MSG_CONFERMA; db.settings.msgPromemoria = MSG_PROMEMORIA; save(); render(); toast('Testi ripristinati');
+        db.settings.msgConferma = MSG_CONFERMA; db.settings.msgPromemoria = MSG_PROMEMORIA; db.settings.msgAttesa = MSG_ATTESA; save(); render(); toast('Testi ripristinati');
       } break;
     case 'export': esporta(); break;
     case 'filtroCli': filtroCli = id; render(); break;
@@ -740,7 +914,7 @@ document.addEventListener('change', e => {
   if (e.target.id === 'jumpDate' && e.target.value) { selDay = e.target.value; render(); }
 });
 
-$('#fab').addEventListener('click', () => (tab === 'clienti' ? sheetCliente(null) : formAppt(null)));
+$('#fab').addEventListener('click', () => (tab === 'clienti' ? (vistaCli === 'attesa' ? formAttesa(null) : sheetCliente(null)) : formAppt(null)));
 $('#backdrop').addEventListener('click', () => { closeSheet(); render(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !$('#sheet').classList.contains('on')) render(); });
 

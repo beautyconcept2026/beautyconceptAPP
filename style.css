@@ -213,3 +213,15 @@ input[type=checkbox]{-webkit-appearance:checkbox;appearance:auto;padding:0;width
 label.chk{display:flex;gap:12px;align-items:flex-start;color:var(--txt);font-size:14.5px;margin:10px 2px 4px;line-height:1.4;cursor:pointer}
 label.chk input{flex:0 0 20px;margin-top:1px;accent-color:#1d1517}
 label.chk small{display:block;color:var(--ok);font-size:12.5px;margin-top:2px}
+
+/* ===== Lista d'attesa ===== */
+.seg{display:flex;background:#fff;border:1px solid var(--line);border-radius:16px;padding:4px;margin:0 0 14px;box-shadow:var(--shadow)}
+.seg button{flex:1;border:0;background:none;border-radius:12px;padding:10px 8px;font:500 14px 'Jost','Inter',sans-serif;color:var(--mut);cursor:pointer}
+.seg button.on{background:var(--txt);color:#fff}
+.seg small{background:var(--ko);color:#fff;border-radius:9px;padding:1px 6px;font-size:11px;margin-left:3px}
+.att{display:block !important}
+.att-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.att-top b{font-size:16px;font-weight:600}
+.att-info{font-size:13.5px;color:var(--mut);margin-top:4px}
+.att-note{font-size:13px;color:var(--txt);margin-top:6px;font-style:italic}
+.card.prop{padding:12px 14px}

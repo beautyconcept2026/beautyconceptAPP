@@ -8,7 +8,7 @@
    ========================================================= */
 const VERSIONE_SDK = '10.12.2';
 const CDN = `https://www.gstatic.com/firebasejs/${VERSIONE_SDK}/`;
-const COLS = ['clienti', 'appuntamenti', 'servizi'];
+const COLS = ['clienti', 'appuntamenti', 'servizi', 'attesa'];
 const ORA = 36e5;
 const MAX_ORARI = 72;          // ultime 72 copie (3 giorni)
 const GIORNI_GIORNALIERI = 30; // più una copia al giorno per 30 giorni
@@ -26,7 +26,8 @@ const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate
 let F = null, auth = null, fs = null, user = null, base = null;
 let unsubs = [], pushT = null, timerBk = null, backupInCorso = false, caricamento = false;
 let stato = 'off', mostraTutti = false;
-const synced = { clienti: new Map(), appuntamenti: new Map(), servizi: new Map(), settings: '' };
+const synced = { settings: '' };
+COLS.forEach(col => { synced[col] = new Map(); });
 
 /* ---------- indicatore nell'intestazione ---------- */
 const TESTI = {
@@ -223,7 +224,7 @@ function push() {
 function impronta(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h.toString(36) + '.' + s.length; }
 function fotografia() {
   const d = BC.getDb();
-  return JSON.stringify({ settings: d.settings, servizi: d.servizi, clienti: d.clienti, appuntamenti: d.appuntamenti });
+  return JSON.stringify({ settings: d.settings, servizi: d.servizi, clienti: d.clienti, appuntamenti: d.appuntamenti, attesa: d.attesa || [] });
 }
 
 async function controllaBackup(forza = false, motivo = 'automatico') {
