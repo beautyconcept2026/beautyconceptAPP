@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.15';
+const VERSIONE = '1.16';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -231,6 +231,24 @@ function compatibili(slot) {
     .sort((x, y) => (norm(y.servizioNome) === norm(slot.servizioNome)) - (norm(x.servizioNome) === norm(slot.servizioNome)) || String(x.creato).localeCompare(String(y.creato)));
 }
 
+/* ---------- prezzi ---------- */
+const euro = n => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: n % 1 ? 2 : 0 }).format(n || 0);
+const numero = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : null; };
+function prezzoServizio(nome) {
+  const s = db.servizi.find(x => x.nome.toLowerCase() === String(nome || '').toLowerCase());
+  return s ? numero(s.prezzo) : null;
+}
+// prezzo di un appuntamento: quello scritto, poi quello del calendario importato (note), poi il listino
+function prezzoAppt(a) {
+  if (typeof a.prezzo === 'number') return a.prezzo;
+  const nota = String(a.note || '');
+  const tot = nota.match(/totale\s*€?\s*(\d+(?:[.,]\d+)?)/i);
+  if (tot) return numero(tot[1]);
+  const imp = [...nota.matchAll(/€\s?(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s?€/g)].map(m => numero(m[1] || m[2])).filter(n => n != null);
+  if (imp.length) return imp.reduce((s, n) => s + n, 0);
+  return prezzoServizio(a.servizioNome);
+}
+
 /* ---------- stato interfaccia ---------- */
 let tab = 'agenda';
 let selDay = dayKey(new Date());
@@ -251,10 +269,10 @@ function render() {
   const n = daRicordare().length;
   const b = $('#badge'); b.hidden = !n; b.textContent = n;
   $$('.tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tab));
-  $('#fab').style.display = tab === 'impostazioni' ? 'none' : '';
+  $('#fab').style.display = tab === 'impostazioni' || tab === 'incassi' ? 'none' : '';
   const v = $('#view');
   v.style.animation = 'none'; void v.offsetWidth; v.style.animation = '';
-  v.innerHTML = ({ agenda: viewAgenda, ricordare: viewRicordare, clienti: viewClienti, impostazioni: viewImpostazioni })[tab]();
+  v.innerHTML = ({ agenda: viewAgenda, ricordare: viewRicordare, clienti: viewClienti, incassi: viewIncassi, impostazioni: viewImpostazioni })[tab]();
   if (tab === 'agenda') centraGiorno();
   if (tab === 'impostazioni') bindImpostazioni();
   if (window.BC && window.BC.afterRender) window.BC.afterRender(tab);
@@ -384,6 +402,117 @@ function viewAttesa() {
     }).join('') : `<div class="empty"><div class="ic">⏳</div>Nessuna cliente in attesa.<br>Tocca <b>+</b> per aggiungerne una.</div>`}`;
 }
 
+/* ---------- Incassi ---------- */
+let statPer = 'mese', statRif = new Date();
+const MESI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+function periodo(per, rif) {
+  const d = new Date(rif); d.setHours(0, 0, 0, 0);
+  let ini, fine, nome;
+  if (per === 'giorno') { ini = d; fine = new Date(d); fine.setDate(d.getDate() + 1); nome = cap(fmtData(d)); }
+  else if (per === 'settimana') {
+    ini = new Date(d); ini.setDate(d.getDate() - ((d.getDay() + 6) % 7)); fine = new Date(ini); fine.setDate(ini.getDate() + 7);
+    const ult = new Date(fine); ult.setDate(fine.getDate() - 1);
+    nome = `${ini.getDate()} ${MESI[ini.getMonth()]} – ${ult.getDate()} ${MESI[ult.getMonth()]}`;
+  } else if (per === 'mese') { ini = new Date(d.getFullYear(), d.getMonth(), 1); fine = new Date(d.getFullYear(), d.getMonth() + 1, 1); nome = cap(ini.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })); }
+  else { ini = new Date(d.getFullYear(), 0, 1); fine = new Date(d.getFullYear() + 1, 0, 1); nome = String(d.getFullYear()); }
+  return { ini, fine, nome };
+}
+function spostaPeriodo(per, rif, n) {
+  const d = new Date(rif);
+  if (per === 'giorno') d.setDate(d.getDate() + n);
+  else if (per === 'settimana') d.setDate(d.getDate() + 7 * n);
+  else if (per === 'mese') d.setMonth(d.getMonth() + n, 1);
+  else d.setFullYear(d.getFullYear() + n);
+  return d;
+}
+function calcola(ini, fine) {
+  const ora = Date.now();
+  const tutti = db.appuntamenti.filter(a => { const t = +new Date(a.inizio); return t >= +ini && t < +fine; });
+  const attivi = tutti.filter(a => a.stato !== 'disdetto');
+  let incassato = 0, previsto = 0, conPrezzo = 0, senzaPrezzo = 0;
+  attivi.forEach(a => {
+    const p = prezzoAppt(a);
+    if (p == null) { senzaPrezzo++; return; }
+    if (+new Date(a.inizio) <= ora) { incassato += p; conPrezzo++; } else previsto += p;
+  });
+  return { tutti, attivi, incassato, previsto, conPrezzo, senzaPrezzo, disdetti: tutti.length - attivi.length };
+}
+function viewIncassi() {
+  const { ini, fine, nome } = periodo(statPer, statRif);
+  const r = calcola(ini, fine);
+  const prec = periodo(statPer, spostaPeriodo(statPer, statRif, -1));
+  const rp = calcola(prec.ini, prec.fine);
+  const totale = r.incassato + r.previsto, totPrec = rp.incassato + rp.previsto;
+  const varia = totPrec > 0 ? Math.round((totale - totPrec) / totPrec * 100) : null;
+  const medio = r.conPrezzo ? r.incassato / r.conPrezzo : 0;
+  const percDisd = r.tutti.length ? Math.round(r.disdetti / r.tutti.length * 100) : 0;
+  const clientiUniche = new Set(r.attivi.map(a => a.clienteId)).size;
+  const ora = Date.now();
+
+  // barre: giorni della settimana/mese, mesi dell'anno
+  let barre = [];
+  if (statPer === 'settimana' || statPer === 'mese') {
+    for (let d = new Date(ini); d < fine; d.setDate(d.getDate() + 1)) barre.push({ k: dayKey(d), et: statPer === 'settimana' ? d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '') : String(d.getDate()), tit: cap(fmtData(d)), fatto: 0, prev: 0 });
+    r.attivi.forEach(a => { const b = barre.find(x => x.k === dayKey(new Date(a.inizio))); const p = prezzoAppt(a); if (b && p != null) { if (+new Date(a.inizio) <= ora) b.fatto += p; else b.prev += p; } });
+  } else if (statPer === 'anno') {
+    barre = MESI.map((m, i) => ({ k: i, et: m, tit: cap(new Date(ini.getFullYear(), i, 1).toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })), fatto: 0, prev: 0 }));
+    r.attivi.forEach(a => { const d = new Date(a.inizio), p = prezzoAppt(a); if (p != null) { if (+d <= ora) barre[d.getMonth()].fatto += p; else barre[d.getMonth()].prev += p; } });
+  }
+  const max = Math.max(1, ...barre.map(b => b.fatto + b.prev));
+  const haPrev = barre.some(b => b.prev > 0);
+
+  // servizi e clienti migliori
+  const perSrv = {}, perCli = {};
+  r.attivi.forEach(a => {
+    const pv = prezzoAppt(a), p = pv || 0;
+    const s = perSrv[a.servizioNome] = perSrv[a.servizioNome] || { n: 0, e: 0, conP: false }; s.n++; s.e += p; if (pv != null) s.conP = true;
+    const c = perCli[a.clienteId] = perCli[a.clienteId] || { n: 0, e: 0 }; c.n++; c.e += p;
+  });
+  const topSrv = Object.entries(perSrv).sort((x, y) => y[1].e - x[1].e || y[1].n - x[1].n).slice(0, 6);
+  const maxSrv = Math.max(1, ...topSrv.map(x => x[1].e));
+  const topCli = Object.entries(perCli).sort((x, y) => y[1].e - x[1].e || y[1].n - x[1].n).slice(0, 5);
+
+  return `
+    <div class="h2">Incassi</div>
+    <div class="seg seg4">${[['giorno', 'Giorno'], ['settimana', 'Settimana'], ['mese', 'Mese'], ['anno', 'Anno']].map(([k, n]) => `<button class="${statPer === k ? 'on' : ''}" data-act="statPer" data-id="${k}">${n}</button>`).join('')}</div>
+    <div class="pernav"><button data-act="statSposta" data-id="-1" aria-label="Periodo precedente">‹</button><b>${esc(nome)}</b><button data-act="statSposta" data-id="1" aria-label="Periodo successivo">›</button></div>
+
+    <div class="hero card">
+      <small>Totale del periodo</small>
+      <div class="hero-n">${euro(totale)}</div>
+      <div class="hero-sub">${euro(r.incassato)} incassati${r.previsto ? ` · ${euro(r.previsto)} ancora da fare` : ''}</div>
+      ${varia != null ? `<div class="hero-var ${varia >= 0 ? 'su' : 'giu'}">${varia >= 0 ? '▲' : '▼'} ${Math.abs(varia)}% rispetto al periodo prima</div>` : ''}
+    </div>
+    <div class="kpi">
+      <div class="card"><small>Appuntamenti</small><b>${r.attivi.length}</b></div>
+      <div class="card"><small>Clienti</small><b>${clientiUniche}</b></div>
+      <div class="card"><small>Scontrino medio</small><b>${medio ? euro(Math.round(medio)) : '—'}</b></div>
+      <div class="card"><small>Disdette</small><b>${r.disdetti}${r.tutti.length ? ` <em>${percDisd}%</em>` : ''}</b></div>
+    </div>
+    ${r.senzaPrezzo ? `<div class="warnbox">💶 ${r.senzaPrezzo} appuntament${r.senzaPrezzo === 1 ? 'o' : 'i'} senza prezzo, non contat${r.senzaPrezzo === 1 ? 'o' : 'i'} nel totale. Imposta i prezzi in <b>Impostazioni → Servizi</b>.
+      <button class="btn small ghost block" data-tab="impostazioni" style="margin-top:8px">Vai ai prezzi dei servizi</button></div>` : ''}
+
+    ${barre.length ? `<div class="section-t">Andamento</div>
+    <div class="card grafico">
+      <div class="bars ${barre.length > 12 ? 'fitte' : ''}">${barre.map(b => `<button class="bar" data-act="barra" data-id="${esc(b.tit)}: ${euro(b.fatto + b.prev)}${b.prev ? ` (di cui ${euro(b.prev)} prenotati)` : ''}">
+        <span class="col"><i class="prev" style="height:${b.prev / max * 100}%"></i><i class="fatto" style="height:${b.fatto / max * 100}%"></i></span>
+        <span class="et">${esc(b.et)}</span></button>`).join('')}</div>
+      <div class="legenda"><span><i class="fatto"></i>Incassato</span>${haPrev ? '<span><i class="prev"></i>Prenotato</span>' : ''}<span class="mut">Tocca una barra per il valore</span></div>
+    </div>` : ''}
+
+    ${statPer === 'giorno' && r.tutti.length ? `<div class="section-t">Appuntamenti del giorno</div>
+      <div class="card">${r.tutti.sort(byStart).map(a => `<div class="kv ${a.stato === 'disdetto' ? 'barrato' : ''}"><span>${fmtOra(new Date(a.inizio))} · ${esc((cliente(a.clienteId) || {}).nome || '')} · ${esc(a.servizioNome)}</span><b>${prezzoAppt(a) != null ? euro(prezzoAppt(a)) : '—'}</b></div>`).join('')}</div>` : ''}
+
+    ${topSrv.length ? `<div class="section-t">Servizi che rendono di più</div>
+    <div class="card">${topSrv.map(([n, v]) => `<div class="hb"><div class="hb-t"><span>${esc(n)} <small>×${v.n}</small></span><b>${v.conP ? euro(v.e) : '—'}</b></div><div class="hb-b"><i style="width:${v.e / maxSrv * 100}%"></i></div></div>`).join('')}</div>` : ''}
+
+    ${topCli.length ? `<div class="section-t">Clienti migliori</div>
+    <div class="card">${topCli.map(([id, v], i) => `<button class="kv kvb" data-cli="${id}"><span>${i + 1}. ${esc((cliente(id) || {}).nome || 'Cliente eliminata')} <small>· ${v.n} appuntament${v.n === 1 ? 'o' : 'i'}</small></span><b>${euro(v.e)}</b></button>`).join('')}</div>` : ''}
+
+    ${!r.tutti.length ? `<div class="empty"><div class="ic">💶</div>Nessun appuntamento in questo periodo.</div>` : ''}
+    <p class="hint" style="text-align:center;margin-top:16px">I totali sono calcolati dai prezzi degli appuntamenti (o del listino servizi). Le disdette non sono contate.</p>`;
+}
+
 /* ---------- Impostazioni ---------- */
 function viewImpostazioni() {
   const s = db.settings;
@@ -414,11 +543,12 @@ function viewImpostazioni() {
 
     <div class="section-t">Servizi</div>
     <div class="card" id="servizi">
-      ${db.servizi.map(x => `<div class="srv">
-        <input data-srv="${x.id}" data-k="nome" value="${esc(x.nome)}" placeholder="Nome servizio">
-        <input class="d" data-srv="${x.id}" data-k="durata" type="number" inputmode="numeric" value="${x.durata}" min="5" step="5">
+      ${db.servizi.map(x => `<div class="srv2">
+        <input class="n" data-srv="${x.id}" data-k="nome" value="${esc(x.nome)}" placeholder="Nome servizio">
+        <label class="mini"><input data-srv="${x.id}" data-k="durata" type="number" inputmode="numeric" value="${x.durata}" min="5" step="5"><span>min</span></label>
+        <label class="mini"><span>€</span><input data-srv="${x.id}" data-k="prezzo" type="text" inputmode="decimal" value="${x.prezzo ?? ''}" placeholder="prezzo"></label>
         <button data-act="delSrv" data-id="${x.id}" aria-label="Elimina">✕</button></div>`).join('')}
-      <p class="hint">Nome e durata in minuti.</p>
+      <p class="hint">Nome, durata in minuti e prezzo. Il prezzo si propone da solo nei nuovi appuntamenti e serve per gli Incassi.</p>
       <button class="btn ghost block" data-act="addSrv" style="margin-top:10px">+ Aggiungi servizio</button>
     </div>
 
@@ -484,7 +614,7 @@ function bindImpostazioni() {
   $$('[data-srv]').forEach(el => el.addEventListener('input', () => {
     const s = db.servizi.find(x => x.id === el.dataset.srv);
     if (!s) return;
-    s[el.dataset.k] = el.dataset.k === 'durata' ? Math.max(5, Number(el.value) || 30) : el.value;
+    s[el.dataset.k] = el.dataset.k === 'durata' ? Math.max(5, Number(el.value) || 30) : el.dataset.k === 'prezzo' ? numero(el.value) : el.value;
     clearTimeout(t); t = setTimeout(save, 300);
   }));
   $('#importFile').addEventListener('change', e => importa(e.target.files[0]));
@@ -532,8 +662,10 @@ function formAppt(a) {
       <div><label>Giorno</label><input id="fData" type="date" value="${dayKey(d)}"></div>
       <div><label>Ora</label><input id="fOra" type="time" step="300" value="${pad(d.getHours())}:${pad(d.getMinutes())}"></div>
     </div>
-    <label>Durata (minuti)</label>
-    <input id="fDur" type="number" inputmode="numeric" min="5" step="5" value="${durata}">
+    <div class="row">
+      <div><label>Durata (minuti)</label><input id="fDur" type="number" inputmode="numeric" min="5" step="5" value="${durata}"></div>
+      <div><label>Prezzo (€)</label><input id="fPrezzo" type="text" inputmode="decimal" placeholder="—" value="${a ? (prezzoAppt(a) ?? '') : (numero((db.servizi[0] || {}).prezzo) ?? '')}"></div>
+    </div>
     <label>Note (facoltative)</label>
     <input id="fNote" placeholder="Es. pelle sensibile" value="${esc(a ? a.note || '' : '')}">
     <div id="fWarn"></div>
@@ -547,7 +679,7 @@ function formAppt(a) {
   fSrv.addEventListener('change', () => {
     const s = db.servizi.find(x => x.id === fSrv.value);
     $('#fSrvAltro').style.display = s ? 'none' : '';
-    if (s) $('#fDur').value = s.durata; else $('#fSrvAltro').focus();
+    if (s) { $('#fDur').value = s.durata; $('#fPrezzo').value = numero(s.prezzo) ?? ''; } else $('#fSrvAltro').focus();
     checkWarn();
   });
   const checkWarn = () => {
@@ -583,9 +715,11 @@ function salvaAppt(id) {
   if (a) {
     spostato = a.inizio !== inizio;
     Object.assign(a, { clienteId: c.id, servizioNome, inizio, durata, note: $('#fNote').value.trim() });
+    const pz = numero($('#fPrezzo').value); if (pz == null) delete a.prezzo; else a.prezzo = pz;
     if (spostato) { a.stato = 'prenotato'; a.inviato = {}; }
   } else {
     a = { id: uid(), clienteId: c.id, servizioNome, inizio, durata, note: $('#fNote').value.trim(), stato: 'prenotato', inviato: {}, creato: new Date().toISOString() };
+    const pz = numero($('#fPrezzo').value); if (pz != null) a.prezzo = pz;
     db.appuntamenti.push(a);
   }
   save();
@@ -629,6 +763,7 @@ function sheetDettaglio(id) {
     <div class="kv"><span>Servizio</span><b>${esc(a.servizioNome)}</b></div>
     <div class="kv"><span>Quando</span><b>${cap(fmtData(d))}, ${fmtOra(d)}</b></div>
     <div class="kv"><span>Durata</span><b>${a.durata} min</b></div>
+    ${prezzoAppt(a) != null ? `<div class="kv"><span>Prezzo</span><b>${euro(prezzoAppt(a))}</b></div>` : ''}
     <div class="kv"><span>Cellulare</span><b>${esc(c.tel)}</b></div>
     ${a.note ? `<div class="kv"><span>Note</span><b>${esc(a.note)}</b></div>` : ''}
     <div class="kv"><span>Conferma inviata</span><b>${fatto(iv.conferma)}</b></div>
@@ -899,6 +1034,9 @@ document.addEventListener('click', e => {
       } break;
     case 'export': esporta(); break;
     case 'filtroCli': filtroCli = id; render(); break;
+    case 'statPer': statPer = id; statRif = new Date(); render(); break;
+    case 'statSposta': statRif = spostaPeriodo(statPer, statRif, Number(id)); render(); break;
+    case 'barra': toast(id); break;
   }
 });
 
