@@ -36,6 +36,9 @@
         const k = await caches.keys();
         await Promise.all(k.filter(x => x.startsWith('beauty-concept')).map(x => caches.delete(x)));
       }
+      // scarica davvero i file nuovi (il telefono potrebbe tenere per qualche minuto quelli vecchi)
+      const file = ['./', 'index.html', 'app.js', 'style.css', 'cloud.js', 'assistente.js', 'import-gcal.js', 'rubrica.js', 'diagnosi.js', 'firebase-config.js', 'ics.js', 'appuntamento.html', 'privacy.html', 'sw.js'];
+      await Promise.all(file.map(f => fetch(f, { cache: 'reload' }).catch(() => {})));
     } catch (e) { /* ignora */ }
     location.replace(location.pathname + '?v=' + Date.now());
   }

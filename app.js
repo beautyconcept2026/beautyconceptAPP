@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.18';
+const VERSIONE = '1.19';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -257,6 +257,12 @@ let filtroCli = 'tutte';
 let vistaCli = 'rubrica';
 let vistaAg = (() => { try { return localStorage.getItem('beautyconcept.vista') || 'giorno'; } catch (e) { return 'giorno'; } })();
 let inizioProposto = null;
+const KEY_UI = 'beautyconcept.ui';
+try { // dopo un aggiornamento si torna dove si era
+  const u = JSON.parse(sessionStorage.getItem(KEY_UI) || 'null');
+  if (u) { tab = u.tab || tab; vistaCli = u.vistaCli || vistaCli; selDay = u.selDay || selDay; filtroCli = u.filtroCli || filtroCli; }
+} catch (e) { /* ignora */ }
+function salvaUI() { try { sessionStorage.setItem(KEY_UI, JSON.stringify({ tab, vistaCli, selDay, filtroCli })); } catch (e) { /* ignora */ } }
 
 /* ---------- icone ---------- */
 const IC_WA = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>';
@@ -278,6 +284,7 @@ function render() {
   if (tab === 'agenda') { if (vistaAg === 'settimana') bindSettimana(); else centraGiorno(); }
   if (tab === 'impostazioni') bindImpostazioni();
   if (window.BC && window.BC.afterRender) window.BC.afterRender(tab);
+  salvaUI();
 }
 
 function centraGiorno() {
@@ -774,13 +781,34 @@ function bindImpostazioni() {
 /* =========================================================
    PANNELLI (dal basso)
    ========================================================= */
+/* tasto/gesto Indietro del telefono: chiude il pannello aperto, poi torna all'Agenda */
+let ignoraPop = 0;
+const statoStoria = () => (history.state && history.state.bc) || null;
 function openSheet(html) {
   const s = $('#sheet');
-  s.innerHTML = '<div class="grab"></div>' + html;
+  const giaAperto = s.classList.contains('on');
+  s.innerHTML = '<button class="sheet-x" data-act="chiudi" aria-label="Chiudi">✕</button><div class="grab" data-act="chiudi"></div>' + html;
   s.scrollTop = 0;
   s.classList.add('on'); $('#backdrop').classList.add('on');
+  if (!giaAperto && statoStoria() !== 'sheet') history.pushState({ bc: 'sheet' }, '');
 }
-function closeSheet() { $('#sheet').classList.remove('on'); $('#backdrop').classList.remove('on'); }
+function closeSheet(daIndietro) {
+  const s = $('#sheet');
+  const eraAperto = s.classList.contains('on');
+  s.classList.remove('on'); $('#backdrop').classList.remove('on');
+  if (eraAperto && !daIndietro && statoStoria() === 'sheet') { ignoraPop++; history.back(); }
+}
+function vaiTab(nuova) {
+  tab = nuova;
+  if (tab !== 'agenda' && statoStoria() !== 'tab') history.pushState({ bc: 'tab' }, '');
+  else if (tab === 'agenda' && statoStoria() === 'tab') { ignoraPop++; history.back(); }
+}
+window.addEventListener('popstate', () => {
+  if (ignoraPop) { ignoraPop--; return; }
+  if ($('#sheet').classList.contains('on')) { closeSheet(true); render(); return; }
+  if (tab !== 'agenda') { tab = 'agenda'; render(); window.scrollTo(0, 0); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('#sheet').classList.contains('on')) { closeSheet(); render(); } });
 
 /* ---------- nuovo / modifica appuntamento ---------- */
 function defaultStart() {
@@ -1134,7 +1162,7 @@ document.addEventListener('click', e => {
     }
     return;
   }
-  if (el.dataset.tab) { tab = el.dataset.tab; if (tab === 'agenda') selDay = selDay || dayKey(new Date()); render(); window.scrollTo(0, 0); return; }
+  if (el.dataset.tab) { vaiTab(el.dataset.tab); if (tab === 'agenda') selDay = selDay || dayKey(new Date()); render(); window.scrollTo(0, 0); return; }
   if (el.dataset.day) { selDay = el.dataset.day; render(); return; }
   if (el.dataset.appt) { sheetDettaglio(el.dataset.appt); return; }
   if (el.dataset.cli) { sheetCliente(el.dataset.cli); return; }
@@ -1258,17 +1286,22 @@ async function controllaAggiornamento() {
     if (!r.ok) return;
     const { v } = await r.json();
     if (!v || v === VERSIONE) return;
-    if (!staLavorando()) { aggiornaOra(); return; }
+    // se ho già provato ad aggiornare a questa versione da poco, non ricaricare di nuovo (niente cicli)
+    let tent = null; try { tent = JSON.parse(sessionStorage.getItem('beautyconcept.agg') || 'null'); } catch (e) { /* ignora */ }
+    if (tent && tent.v === v && Date.now() - tent.t < 10 * 60e3) return;
+    if (!staLavorando()) { aggiornaOra(v); return; }
     if (avvisoAgg) return;
     avvisoAgg = true;
     const b = document.createElement('button');
     b.className = 'agg-banner';
     b.innerHTML = '✨ Nuova versione pronta · <b>tocca per aggiornare</b>';
-    b.addEventListener('click', aggiornaOra);
+    b.addEventListener('click', () => aggiornaOra(v));
     document.body.appendChild(b);
   } catch (e) { /* senza rete: riproverà */ }
 }
-function aggiornaOra() {
+function aggiornaOra(v) {
+  try { sessionStorage.setItem('beautyconcept.agg', JSON.stringify({ v, t: Date.now() })); } catch (e) { /* ignora */ }
+  salvaUI();
   if (window.BCAggiorna) window.BCAggiorna(); else location.reload();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) controllaAggiornamento(); });
