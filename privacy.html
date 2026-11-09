@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f7eeec">
+  <meta name="color-scheme" content="only light">
+  <meta name="robots" content="noindex">
+  <title>Informativa privacy</title>
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root{color-scheme:only light;--bg:#f7eeec;--blush:#e9c7c5;--line:rgba(120,80,70,.13);--txt:#1d1517;--mut:#8c7573;--gold:#b98c5f;--serif:'Cormorant Garamond',Georgia,serif}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{background:var(--bg);color:var(--txt);font-family:'Jost',system-ui,-apple-system,sans-serif}
+    body{padding:calc(24px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom))}
+    body::before{content:'';position:fixed;z-index:-1;width:420px;height:420px;border-radius:50%;background:var(--blush);filter:blur(80px);opacity:.75;top:-150px;right:-130px}
+    .wrap{max-width:680px;margin:0 auto}
+    .logo{display:block;width:110px;height:110px;border-radius:50%;margin:0 auto 10px;box-shadow:0 16px 36px -14px rgba(185,140,95,.7);background:#fff}
+    .studio{text-align:center;font-family:var(--serif);font-size:12px;letter-spacing:4px;text-transform:uppercase;font-weight:600;margin-bottom:16px}
+    h1{font-family:var(--serif);font-size:30px;font-weight:600;text-align:center;line-height:1.15;margin-bottom:6px}
+    .sub{text-align:center;color:var(--mut);font-size:14px;margin-bottom:20px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:24px;padding:20px 20px 8px;box-shadow:0 18px 44px -24px rgba(120,70,60,.45)}
+    h2{font-family:var(--serif);font-size:21px;font-weight:600;margin:14px 0 6px;color:var(--txt)}
+    h2 span{color:var(--gold)}
+    p,li{font-size:14.5px;line-height:1.6;color:#3b2f31;margin-bottom:10px}
+    ul{padding-left:20px;margin-bottom:10px}
+    b{font-weight:600}
+    .foot{text-align:center;color:var(--mut);font-size:12.5px;margin-top:16px;line-height:1.5}
+    a{color:var(--gold)}
+  </style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+'use strict';
+(function () {
+  var q = new URLSearchParams(location.search);
+  var esc = function (s) { return String(s || '').replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var centro = q.get('c') || 'Beauty Concept';
+  var titolare = q.get('r') || centro;
+  var indirizzo = q.get('a') || '';
+  var piva = q.get('i') || '';
+  var email = q.get('e') || '';
+  var tel = (q.get('p') || '').replace(/\D/g, '');
+  var contatti = [email ? 'email <a href="mailto:' + esc(email) + '">' + esc(email) + '</a>' : '', tel ? 'telefono/WhatsApp +' + esc(tel) : '', indirizzo ? 'di persona presso il centro' : ''].filter(Boolean).join(', ');
+
+  document.getElementById('app').innerHTML =
+    '<img class="logo" src="logo.png" alt="">' +
+    '<p class="studio">Beauty &amp; Nails Studio</p>' +
+    '<h1>Informativa sul trattamento<br>dei dati personali</h1>' +
+    '<p class="sub">ai sensi degli artt. 13 e 14 del Regolamento UE 2016/679 (GDPR)</p>' +
+    '<div class="card">' +
+    '<h2><span>1.</span> Chi tratta i tuoi dati</h2>' +
+    '<p>Il titolare del trattamento è <b>' + esc(titolare) + '</b>' + (centro !== titolare ? ' (' + esc(centro) + ')' : '') +
+      (indirizzo ? ', con sede in ' + esc(indirizzo) : '') + (piva ? ', P.IVA/C.F. ' + esc(piva) : '') + '.' +
+      (contatti ? ' Puoi contattarci via ' + contatti + '.' : '') + '</p>' +
+
+    '<h2><span>2.</span> Quali dati trattiamo</h2>' +
+    '<ul><li><b>Dati anagrafici e di contatto</b>: nome, cognome, numero di cellulare.</li>' +
+    '<li><b>Dati sugli appuntamenti</b>: date, orari, trattamenti scelti, eventuali prezzi.</li>' +
+    '<li><b>Informazioni utili per la tua sicurezza</b> che decidi di comunicarci, ad esempio allergie, sensibilità della pelle o condizioni da tenere presenti durante i trattamenti. Si tratta di dati relativi alla salute: li trattiamo solo con il tuo consenso esplicito.</li></ul>' +
+
+    '<h2><span>3.</span> Perché li trattiamo</h2>' +
+    '<ul><li><b>Gestire gli appuntamenti</b>, inviarti conferme e promemoria (WhatsApp o SMS) e svolgere i trattamenti richiesti. Base giuridica: esecuzione del servizio che ci chiedi (art. 6.1.b GDPR).</li>' +
+    '<li><b>Adempiere agli obblighi di legge</b>, ad esempio fiscali e contabili (art. 6.1.c).</li>' +
+    '<li><b>Eseguire i trattamenti in sicurezza</b> tenendo conto delle informazioni sulla tua salute che ci fornisci. Base giuridica: tuo consenso esplicito (art. 9.2.a).</li>' +
+    '<li><b>Inviarti offerte e promozioni</b> del centro, solo se ci dai un consenso specifico e facoltativo (art. 6.1.a). Puoi revocarlo in ogni momento.</li></ul>' +
+
+    '<h2><span>4.</span> Come e per quanto tempo</h2>' +
+    '<p>I dati sono conservati in un\'agenda digitale protetta da password, su server Google Firebase situati nell\'Unione Europea, e accessibile solo al personale del centro. ' +
+    'Conserviamo i dati degli appuntamenti per il tempo del rapporto e per i periodi previsti dalla legge (fino a 10 anni per i dati fiscali). ' +
+    'Le informazioni sulla salute e i dati per le promozioni restano finché non revochi il consenso o ci chiedi di cancellarli.</p>' +
+
+    '<h2><span>5.</span> Chi può vederli</h2>' +
+    '<p>I dati non vengono venduti né diffusi. Possono essere trattati, solo per le finalità indicate, da fornitori che ci offrono i servizi tecnici (Google per l\'agenda in cloud, Meta/WhatsApp e operatori telefonici per l\'invio dei messaggi) e dal nostro consulente fiscale. ' +
+    'Alcuni di questi fornitori possono trattare dati anche fuori dall\'UE, con le garanzie previste dal GDPR (ad esempio clausole contrattuali standard o adesione al Data Privacy Framework).</p>' +
+
+    '<h2><span>6.</span> Cosa succede se non dai i dati</h2>' +
+    '<p>Nome e cellulare servono per prenotare e ricevere i promemoria: senza, non possiamo gestire l\'appuntamento. Il consenso per le informazioni sulla salute e per le promozioni è facoltativo; senza il primo potremmo però non poter eseguire alcuni trattamenti in sicurezza.</p>' +
+
+    '<h2><span>7.</span> I tuoi diritti</h2>' +
+    '<p>Puoi chiederci in ogni momento di accedere ai tuoi dati, correggerli, cancellarli, limitarne l\'uso, riceverne una copia od opporti al trattamento (artt. 15-22 GDPR), e revocare i consensi dati senza conseguenze sui trattamenti già effettuati. ' +
+    'Basta scriverci' + (contatti ? ' (' + contatti + ')' : '') + '. Hai anche il diritto di presentare reclamo al Garante per la protezione dei dati personali (<a href="https://www.garanteprivacy.it" target="_blank" rel="noopener">www.garanteprivacy.it</a>).</p>' +
+    '</div>' +
+    '<p class="foot">Per dare il tuo consenso rispondi al messaggio che hai ricevuto da ' + esc(centro) + '.<br>Grazie per la fiducia 💕</p>';
+  document.title = 'Informativa privacy · ' + centro;
+})();
+</script>
+</body>
+</html>

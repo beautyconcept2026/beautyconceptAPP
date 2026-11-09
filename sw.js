@@ -1,9 +1,9 @@
 /* Beauty Concept – service worker: l'app funziona anche senza internet */
 importScripts('ics.js');
-const CACHE = 'beauty-concept-v16';
+const CACHE = 'beauty-concept-v17';
 const FB = 'https://www.gstatic.com/firebasejs/10.12.2/';
 const ASSETS = ['./', './index.html', './diagnosi.js', './style.css', './app.js', './import-gcal.js', './rubrica.js', './cloud.js', './assistente.js', './firebase-config.js',
-  './appuntamento.html', './ics.js', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+  './appuntamento.html', './privacy.html', './ics.js', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png',
   './logo.png', './logo-256.png'];
 
 self.addEventListener('install', e => {

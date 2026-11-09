@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.13';
+const VERSIONE = '1.14';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -33,6 +33,13 @@ Ti ricordiamo il tuo appuntamento da {centro}:
 Rispondi SÌ per confermare 🙏
 Se hai un imprevisto avvisaci subito, così liberiamo il posto.`;
 
+const MSG_PRIVACY = `Ciao {nome}! 🌸
+Per poterti seguire al meglio e mandarti i promemoria degli appuntamenti, ti inviamo l'informativa sulla privacy di {centro}:
+{link}
+
+Rispondi OK per dare il consenso 🙏
+Se vuoi ricevere anche le nostre offerte e promozioni, scrivi OK OFFERTE 💕`;
+
 const DEFAULT = {
   settings: {
     nome: 'Beauty Concept',
@@ -41,7 +48,11 @@ const DEFAULT = {
     linkBase: '',
     oreAvviso: 72,
     msgConferma: MSG_CONFERMA,
-    msgPromemoria: MSG_PROMEMORIA
+    msgPromemoria: MSG_PROMEMORIA,
+    msgPrivacy: MSG_PRIVACY,
+    titolare: '',
+    piva: '',
+    email: ''
   },
   servizi: [
     { id: 's1', nome: 'Pulizia viso', durata: 60 },
@@ -127,6 +138,28 @@ function linkCalendario(a) {
   if (db.settings.telefono) p.set('p', telIntl(db.settings.telefono));
   return base + '?' + p.toString();
 }
+function linkPrivacy() {
+  const base = baseLink();
+  if (!base) return '';
+  const s = db.settings;
+  const p = new URLSearchParams({ c: s.nome || 'Beauty Concept' });
+  if (s.titolare) p.set('r', s.titolare);
+  if (s.indirizzo) p.set('a', s.indirizzo);
+  if (s.piva) p.set('i', s.piva);
+  if (s.email) p.set('e', s.email);
+  if (s.telefono) p.set('p', telIntl(s.telefono));
+  return base.replace(/appuntamento\.html$/, 'privacy.html') + '?' + p.toString();
+}
+function msgPrivacy(c) {
+  const link = linkPrivacy();
+  let tpl = db.settings.msgPrivacy || MSG_PRIVACY;
+  if (!link) tpl = tpl.split('\n').filter(l => !l.includes('{link}')).join('\n');
+  const val = { nome: (c.nome || '').trim().split(/\s+/)[0], centro: db.settings.nome, link };
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in val ? val[k] : m)).trim();
+}
+const oggiISO = () => dayKey(new Date());
+const fmtBreve = k => k ? parseDay(k).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+
 function compila(tpl, a) {
   const c = cliente(a.clienteId) || {};
   const d = new Date(a.inizio);
@@ -168,6 +201,7 @@ function sovrapposizioni(inizio, durata, escludiId) {
 let tab = 'agenda';
 let selDay = dayKey(new Date());
 let cerca = '';
+let filtroCli = 'tutte';
 
 /* ---------- icone ---------- */
 const IC_WA = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>';
@@ -270,20 +304,30 @@ function cardRem(a) {
 }
 
 /* ---------- Clienti ---------- */
+const senzaTel = c => !String(c.tel || '').replace(/\D/g, '');
+const FILTRI_CLI = {
+  tutte: { nome: 'Tutte', f: () => true },
+  privacy: { nome: 'Senza consenso privacy', f: c => !c.privacy },
+  numero: { nome: 'Senza numero', f: senzaTel },
+  offerte: { nome: 'Sì offerte', f: c => !!c.marketing }
+};
 function viewClienti() {
   const q = cerca.trim().toLowerCase();
+  const filtro = FILTRI_CLI[filtroCli] || FILTRI_CLI.tutte;
   const list = db.clienti
+    .filter(filtro.f)
     .filter(c => !q || c.nome.toLowerCase().includes(q) || String(c.tel).includes(q))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
   return `
     <div class="h2">Clienti</div>
     <p class="sub">${db.clienti.length} in rubrica</p>
+    <div class="chips">${Object.entries(FILTRI_CLI).map(([k, v]) => `<button class="chipf ${k === filtroCli ? 'on' : ''}" data-act="filtroCli" data-id="${k}">${v.nome} <small>${db.clienti.filter(v.f).length}</small></button>`).join('')}</div>
     <input type="search" id="cerca" placeholder="🔍  Cerca per nome o telefono" value="${esc(cerca)}" style="margin-bottom:14px">
     ${list.length ? list.map(c => {
       const n = db.appuntamenti.filter(a => a.clienteId === c.id && a.stato !== 'disdetto').length;
       const ini = c.nome.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
       return `<button class="card cli" data-cli="${c.id}"><span class="avatar">${esc(ini)}</span>
-        <span class="info"><b>${esc(c.nome)}</b><span>${c.tel ? esc(c.tel) : '<em style="color:var(--ko);font-style:normal">Senza numero</em>'} · ${n} appuntament${n === 1 ? 'o' : 'i'}</span></span></button>`;
+        <span class="info"><b>${esc(c.nome)}</b><span>${c.tel ? esc(c.tel) : '<em style="color:var(--ko);font-style:normal">Senza numero</em>'} · ${n} appuntament${n === 1 ? 'o' : 'i'}</span></span>${c.privacy ? '' : '<span class="nopriv" title="Consenso privacy mancante">🔒</span>'}</button>`;
     }).join('') : `<div class="empty"><div class="ic">👩🏻</div>${q ? 'Nessun risultato.' : 'Nessuna cliente ancora.<br>Vengono aggiunte da sole quando crei un appuntamento.'}</div>`}`;
 }
 
@@ -302,6 +346,17 @@ function viewImpostazioni() {
       <label>Telefono / WhatsApp del centro</label><input data-set="telefono" type="tel" inputmode="tel" value="${esc(s.telefono)}" placeholder="333 1234567">
       <label>Avvisa nella sezione "Da ricordare" quante ore prima?</label>
       <select data-set="oreAvviso">${[48, 72, 96].map(h => `<option value="${h}" ${Number(s.oreAvviso) === h ? 'selected' : ''}>${h} ore prima (${h / 24} giorni)</option>`).join('')}</select>
+    </div>
+
+    <div class="section-t">Privacy (GDPR)</div>
+    <div class="card">
+      <p class="hint" style="margin-top:0">Questi dati compaiono nell'informativa che mandi alle clienti.</p>
+      <label>Titolare (nome e cognome o ragione sociale)</label><input data-set="titolare" value="${esc(s.titolare)}" placeholder="Es. Sara Rossi">
+      <label>P.IVA / Codice fiscale</label><input data-set="piva" value="${esc(s.piva)}">
+      <label>Email per le richieste privacy</label><input data-set="email" type="email" inputmode="email" value="${esc(s.email)}">
+      <label>Messaggio con l'informativa</label><textarea data-set="msgPrivacy">${esc(s.msgPrivacy)}</textarea>
+      ${linkPrivacy() ? `<a class="btn ghost block small" href="${esc(linkPrivacy())}" target="_blank" rel="noopener" style="margin-top:12px">📄 Vedi l'informativa</a>` : ''}
+      <p class="hint">Testo standard per centri estetici: fallo controllare dal vostro consulente o commercialista. ${(() => { const n = db.clienti.filter(c => !c.privacy).length; return n ? `<br><b>${n}</b> client${n === 1 ? 'e' : 'i'} senza consenso: le trovi in Clienti → "Senza consenso privacy".` : ''; })()}</p>
     </div>
 
     <div class="section-t">Servizi</div>
@@ -545,6 +600,13 @@ function sheetCliente(id) {
     <label>Cellulare</label><input id="cTel" type="tel" inputmode="tel" value="${esc(c ? c.tel : '')}">
     ${window.BCRubrica && BCRubrica.pickerOk ? '<button class="btn ghost block small" data-rubrica="cTel" style="margin-top:8px">📇 Prendi dalla rubrica</button>' : ''}
     <label>Note</label><input id="cNote" value="${esc(c ? c.note || '' : '')}" placeholder="Allergie, preferenze…">
+    <div class="section-t" style="margin-top:18px">Privacy</div>
+    <label class="chk"><input type="checkbox" id="cPriv" ${c && c.privacy ? 'checked' : ''}>
+      <span>Ha ricevuto l'informativa e dato il consenso al trattamento dei dati (anche allergie / pelle)${c && c.privacy ? `<small>dal ${fmtBreve(c.privacy)}</small>` : ''}</span></label>
+    <label class="chk"><input type="checkbox" id="cMkt" ${c && c.marketing ? 'checked' : ''}>
+      <span>Vuole ricevere offerte e promozioni${c && c.marketing ? `<small>dal ${fmtBreve(c.marketing)}</small>` : ''}</span></label>
+    ${c && telValido(c.tel) && linkPrivacy() ? `<a class="btn ghost block small" href="${esc(waUrl(c.tel, msgPrivacy(c)))}" target="_blank" rel="noopener" style="margin-top:8px">📄 Manda l'informativa su WhatsApp</a>
+      <p class="hint">Quando risponde OK, spunta qui sopra e salva.</p>` : ''}
     <button class="btn pri block" data-act="salvaCli" data-id="${c ? c.id : ''}" style="margin-top:16px">Salva</button>
     ${c ? `
       <div class="grid2">
@@ -563,8 +625,13 @@ function salvaCli(id) {
   if (tel && !telValido(tel)) return toast('Controlla il numero di cellulare');
   const doppio = db.clienti.find(x => x.nome.toLowerCase() === nome.toLowerCase() && x.id !== id);
   if (doppio) return toast('Esiste già una cliente con questo nome');
-  if (id) Object.assign(cliente(id), { nome, tel, note: $('#cNote').value.trim() });
-  else db.clienti.push({ id: uid(), nome, tel, note: $('#cNote').value.trim() });
+  const vecchio = id ? cliente(id) : {};
+  const consensi = {
+    privacy: $('#cPriv').checked ? (vecchio.privacy || oggiISO()) : '',
+    marketing: $('#cMkt').checked ? (vecchio.marketing || oggiISO()) : ''
+  };
+  if (id) Object.assign(cliente(id), { nome, tel, note: $('#cNote').value.trim() }, consensi);
+  else db.clienti.push({ id: uid(), nome, tel, note: $('#cNote').value.trim(), ...consensi });
   save(); closeSheet(); render(); toast('Cliente salvata');
 }
 
@@ -657,6 +724,7 @@ document.addEventListener('click', e => {
         db.settings.msgConferma = MSG_CONFERMA; db.settings.msgPromemoria = MSG_PROMEMORIA; save(); render(); toast('Testi ripristinati');
       } break;
     case 'export': esporta(); break;
+    case 'filtroCli': filtroCli = id; render(); break;
   }
 });
 

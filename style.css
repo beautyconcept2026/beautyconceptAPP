@@ -201,3 +201,15 @@ input[type=checkbox]{-webkit-appearance:checkbox;appearance:auto;padding:0;width
 @media (max-width:440px){ .cloud-dot span{display:none} .cloud-dot{padding:9px} }
 .agg-banner{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + var(--sb));z-index:30;border:1px solid var(--gold2);background:var(--txt);color:#fff;border-radius:999px;padding:11px 18px;font:500 13.5px 'Jost','Inter',sans-serif;box-shadow:0 14px 30px -12px rgba(29,21,23,.7);white-space:nowrap;cursor:pointer;animation:in .4s ease}
 .agg-banner b{color:var(--gold2);font-weight:600}
+
+/* ===== Filtri e consensi ===== */
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chipf{flex:0 0 auto;border:1px solid var(--line);background:#fff;color:var(--txt);border-radius:999px;padding:8px 12px;font:500 13px 'Jost','Inter',sans-serif;cursor:pointer;white-space:nowrap}
+.chipf small{color:var(--mut);margin-left:3px}
+.chipf.on{background:var(--txt);color:#fff;border-color:transparent}
+.chipf.on small{color:var(--gold2)}
+.nopriv{font-size:14px;opacity:.55;flex:0 0 auto}
+label.chk{display:flex;gap:12px;align-items:flex-start;color:var(--txt);font-size:14.5px;margin:10px 2px 4px;line-height:1.4;cursor:pointer}
+label.chk input{flex:0 0 20px;margin-top:1px;accent-color:#1d1517}
+label.chk small{display:block;color:var(--ok);font-size:12.5px;margin-top:2px}
