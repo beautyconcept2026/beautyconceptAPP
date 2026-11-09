@@ -98,7 +98,8 @@ function telIntl(t) {
   return n;
 }
 const telValido = t => String(t || '').replace(/\D/g, '').length >= 8;
-const waUrl = (tel, txt) => `https://wa.me/${telIntl(tel)}?text=${encodeURIComponent(txt)}`;
+// link completo di WhatsApp: il link breve wa.me su alcuni telefoni rovina le emoji (escono come "?")
+const waUrl = (tel, txt) => `https://api.whatsapp.com/send?phone=${telIntl(tel)}&text=${encodeURIComponent(txt)}`;
 const smsUrl = (tel, txt) => `sms:+${telIntl(tel)}${isIOS ? '&' : '?'}body=${encodeURIComponent(txt)}`;
 
 function baseLink() {
@@ -354,7 +355,7 @@ function viewImpostazioni() {
       </div>
     </div>
     <button class="btn ghost block small" data-aggiorna style="margin-top:22px">🔄 Aggiorna app all'ultima versione</button>
-    <p class="hint" style="text-align:center;margin:10px 0 4px">Beauty Concept · v1.10</p>`;
+    <p class="hint" style="text-align:center;margin:10px 0 4px">Beauty Concept · v1.11</p>`;
 }
 
 function bindImpostazioni() {
@@ -544,7 +545,7 @@ function sheetCliente(id) {
     <button class="btn pri block" data-act="salvaCli" data-id="${c ? c.id : ''}" style="margin-top:16px">Salva</button>
     ${c ? `
       <div class="grid2">
-        ${c.tel ? `<a class="btn wa" href="https://wa.me/${telIntl(c.tel)}" target="_blank" rel="noopener">${IC_WA} Scrivi</a>
+        ${c.tel ? `<a class="btn wa" href="https://api.whatsapp.com/send?phone=${telIntl(c.tel)}" target="_blank" rel="noopener">${IC_WA} Scrivi</a>
         <a class="btn" href="tel:+${telIntl(c.tel)}">📞 Chiama</a>` : ''}
         <button class="btn" data-act="nuovoPer" data-id="${c.id}" style="grid-column:span 2">+ Nuovo appuntamento per lei</button>
       </div>

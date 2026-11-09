@@ -138,7 +138,7 @@
           ? 'Salvalo nel calendario: il telefono ti avviserà <b>3 giorni</b> e <b>2 giorni</b> prima.'
           : 'Salvalo nel calendario così non te lo dimentichi. Ti scriveremo anche noi qualche giorno prima.') + '</span></div>' +
         (isIOS ? appleBtn + googleBtn : isAndroid ? androidBtn + googleBtn : googleBtn + appleBtn)) +
-      (tel ? '<a class="btn wa" href="https://wa.me/' + tel + '?text=' + encodeURIComponent('Ciao, sono ' + nome + ', ti scrivo per il mio appuntamento di ' + giorno + ' alle ' + ora + '.') + '" target="_blank" rel="noopener">' + IC_WA + 'Devo spostarlo? Scrivici</a>' : '') +
+      (tel ? '<a class="btn wa" href="https://api.whatsapp.com/send?phone=' + tel + '&text=' + encodeURIComponent('Ciao, sono ' + nome + ', ti scrivo per il mio appuntamento di ' + giorno + ' alle ' + ora + '.') + '" target="_blank" rel="noopener">' + IC_WA + 'Devo spostarlo? Scrivici</a>' : '') +
     '</div>' +
     '<p class="note">Se hai un imprevisto avvisaci almeno 48 ore prima,<br>così possiamo dare il posto a un’altra cliente. Grazie!</p>';
 
