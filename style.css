@@ -280,3 +280,24 @@ label.chk small{display:block;color:var(--ok);font-size:12.5px;margin-top:2px}
 .kvb small{color:var(--mut)}
 .kv.barrato span{text-decoration:line-through;opacity:.6}
 .tabs button{white-space:nowrap;font-size:10px;letter-spacing:-.1px}
+
+/* ===== Vista settimana ===== */
+.wk{display:flex;position:relative;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:0 4px 8px 0;margin-bottom:10px;user-select:none;-webkit-user-select:none}
+.wk-ore{flex:0 0 30px;position:relative;margin-top:52px}
+.wk-ore span{position:absolute;right:4px;transform:translateY(-6px);font-size:10px;color:var(--mut)}
+.wk-giorno{flex:1;min-width:0;display:flex;flex-direction:column}
+.wk-testa{height:52px;border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--txt);position:sticky;top:68px;z-index:2;background:#fff;border-bottom:1px solid var(--line)}
+.wk-testa small{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut)}
+.wk-testa b{font-family:var(--serif);font-size:19px;font-weight:600;width:30px;height:30px;line-height:30px;border-radius:50%}
+.wk-testa.oggi b{background:var(--txt);color:#fff}
+.wk-corpo{position:relative;border-left:1px solid var(--line);background-image:linear-gradient(to bottom,var(--line) 1px,transparent 1px);cursor:copy}
+.wk-ev{position:absolute;border-radius:7px;padding:3px 4px;overflow:hidden;font-size:10.5px;line-height:1.25;cursor:pointer;background:#fbefdc;border-left:3px solid var(--warn);color:var(--txt);touch-action:manipulation;transition:box-shadow .15s,opacity .15s}
+.wk-ev b{display:block;font-weight:600;font-size:10.5px}
+.wk-ev span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.wk-ev small{display:block;color:var(--mut);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wk-ev.confermato{background:#e3f3ea;border-left-color:var(--ok)}
+.wk-ev.wk-drag{opacity:.35}
+.wk-fantasma{opacity:1 !important;background:var(--txt) !important;color:#fff !important;border-left-color:var(--gold2) !important;box-shadow:0 10px 24px -8px rgba(29,21,23,.6);z-index:5;pointer-events:none}
+.wk-fantasma small{color:var(--gold2) !important}
+.wk-ora{position:absolute;left:0;right:0;height:2px;background:var(--ko);z-index:3;pointer-events:none}
+.wk-ora::before{content:'';position:absolute;left:-4px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--ko)}

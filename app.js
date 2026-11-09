@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.16';
+const VERSIONE = '1.17';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -255,6 +255,8 @@ let selDay = dayKey(new Date());
 let cerca = '';
 let filtroCli = 'tutte';
 let vistaCli = 'rubrica';
+let vistaAg = (() => { try { return localStorage.getItem('beautyconcept.vista') || 'giorno'; } catch (e) { return 'giorno'; } })();
+let inizioProposto = null;
 
 /* ---------- icone ---------- */
 const IC_WA = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3z"/></svg>';
@@ -273,7 +275,7 @@ function render() {
   const v = $('#view');
   v.style.animation = 'none'; void v.offsetWidth; v.style.animation = '';
   v.innerHTML = ({ agenda: viewAgenda, ricordare: viewRicordare, clienti: viewClienti, incassi: viewIncassi, impostazioni: viewImpostazioni })[tab]();
-  if (tab === 'agenda') centraGiorno();
+  if (tab === 'agenda') { if (vistaAg === 'settimana') bindSettimana(); else centraGiorno(); }
   if (tab === 'impostazioni') bindImpostazioni();
   if (window.BC && window.BC.afterRender) window.BC.afterRender(tab);
 }
@@ -285,6 +287,155 @@ function centraGiorno() {
 
 /* ---------- Agenda ---------- */
 function viewAgenda() {
+  const seg = `<div class="seg"><button class="${vistaAg === 'giorno' ? 'on' : ''}" data-act="vistaAg" data-id="giorno">Giorno</button><button class="${vistaAg === 'settimana' ? 'on' : ''}" data-act="vistaAg" data-id="settimana">Settimana</button></div>`;
+  return seg + (vistaAg === 'settimana' ? viewSettimana() : viewGiorno());
+}
+
+/* ---------- vista settimana a griglia ---------- */
+const PX_ORA = 56;
+let wkInizioOra = 8;
+function lunedi(k) { const d = parseDay(k); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+function corsie(list) { // affianca gli appuntamenti che si sovrappongono
+  const out = []; let gruppo = [], fineGr = 0;
+  const chiudi = () => { const n = Math.max(...gruppo.map(x => x.lane)) + 1; gruppo.forEach(x => { x.n = n; }); gruppo = []; };
+  list.forEach(a => {
+    const s = +new Date(a.inizio), e = s + a.durata * 6e4;
+    if (gruppo.length && s >= fineGr) chiudi();
+    const usate = new Set(gruppo.filter(x => x.e > s).map(x => x.lane));
+    let l = 0; while (usate.has(l)) l++;
+    const x = { a, s, e, lane: l }; gruppo.push(x); out.push(x); fineGr = Math.max(fineGr, e);
+  });
+  if (gruppo.length) chiudi();
+  return out;
+}
+function viewSettimana() {
+  const lun = lunedi(selDay);
+  const giorni = [...Array(7)].map((_, i) => { const d = new Date(lun); d.setDate(lun.getDate() + i); return d; });
+  const fineSett = new Date(lun); fineSett.setDate(lun.getDate() + 7);
+  const sett = db.appuntamenti.filter(a => a.stato !== 'disdetto' && +new Date(a.inizio) >= +lun && +new Date(a.inizio) < +fineSett);
+  let hIni = 8, hFin = 20;
+  sett.forEach(a => { const d = new Date(a.inizio); hIni = Math.min(hIni, d.getHours()); hFin = Math.max(hFin, Math.ceil((d.getHours() * 60 + d.getMinutes() + a.durata) / 60)); });
+  hFin = Math.min(24, hFin); wkInizioOra = hIni;
+  const altezza = (hFin - hIni) * PX_ORA;
+  const ult = giorni[6], oggi = dayKey(new Date());
+  const titolo = lun.getMonth() === ult.getMonth()
+    ? `${lun.getDate()} – ${ult.getDate()} ${ult.toLocaleDateString('it-IT', { month: 'long' })}`
+    : `${lun.getDate()} ${MESI[lun.getMonth()]} – ${ult.getDate()} ${MESI[ult.getMonth()]}`;
+  const ora = new Date(), minOra = (ora.getHours() - hIni) * 60 + ora.getMinutes();
+  return `
+    <div class="pernav"><button data-act="settSposta" data-id="-7" aria-label="Settimana precedente">‹</button>
+      <b>${esc(titolo)}</b><button data-act="settSposta" data-id="7" aria-label="Settimana successiva">›</button></div>
+    <p class="sub" style="text-align:center;margin-top:-6px">${sett.length} appuntament${sett.length === 1 ? 'o' : 'i'} · tocca uno spazio vuoto per aggiungere, tieni premuto per spostare</p>
+    <div class="wk">
+      <div class="wk-ore" style="height:${altezza}px">${[...Array(hFin - hIni)].map((_, i) => `<span style="top:${i * PX_ORA}px">${pad(hIni + i)}</span>`).join('')}</div>
+      ${giorni.map(d => {
+        const k = dayKey(d);
+        const lista = corsie(sett.filter(a => dayKey(new Date(a.inizio)) === k).sort(byStart));
+        return `<div class="wk-giorno">
+          <button class="wk-testa ${k === oggi ? 'oggi' : ''}" data-act="apriGiorno" data-id="${k}"><small>${d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '')}</small><b>${d.getDate()}</b></button>
+          <div class="wk-corpo" data-wbody="${k}" style="height:${altezza}px;background-size:100% ${PX_ORA}px">
+            ${k === oggi && minOra > 0 && minOra < (hFin - hIni) * 60 ? `<i class="wk-ora" style="top:${minOra / 60 * PX_ORA}px"></i>` : ''}
+            ${lista.map(x => {
+              const di = new Date(x.a.inizio), c = cliente(x.a.clienteId) || { nome: '?' };
+              const top = ((di.getHours() - hIni) * 60 + di.getMinutes()) / 60 * PX_ORA;
+              const h = Math.max(22, x.a.durata / 60 * PX_ORA - 2);
+              return `<div class="wk-ev ${x.a.stato}" data-wev="${x.a.id}" style="top:${top}px;height:${h}px;left:calc(${x.lane / x.n * 100}% + 1px);width:calc(${100 / x.n}% - 2px)">
+                <b>${fmtOra(di)}</b><span>${esc(c.nome.split(' ')[0])}</span>${h > 40 ? `<small>${esc(x.a.servizioNome)}</small>` : ''}</div>`;
+            }).join('')}
+          </div></div>`;
+      }).join('')}
+    </div>`;
+}
+
+/* tocchi e trascinamento nella settimana */
+function bindSettimana() {
+  const minDa = (corpo, y) => { const r = corpo.getBoundingClientRect(); return Math.max(0, Math.round(((y - r.top) / PX_ORA * 60) / 15) * 15); };
+  const quando = (k, min) => { const d = parseDay(k); d.setHours(wkInizioOra, 0, 0, 0); d.setMinutes(d.getMinutes() + min); return d; };
+  let drag = null, timer = null, appenaTrascinato = false;
+
+  // tocco su spazio vuoto = nuovo appuntamento a quell'ora
+  $$('.wk-corpo').forEach(corpo => corpo.addEventListener('click', e => {
+    if (e.target !== corpo || appenaTrascinato) return;
+    selDay = corpo.dataset.wbody;
+    inizioProposto = quando(corpo.dataset.wbody, minDa(corpo, e.clientY));
+    formAppt(null);
+  }));
+
+  const fine = () => { clearTimeout(timer); timer = null; };
+  const iniziaDrag = (ev, x, y) => {
+    const a = appt(ev.dataset.wev); if (!a) return;
+    const r = ev.getBoundingClientRect();
+    drag = { ev, a, offY: y - r.top, k: null, min: null };
+    ev.classList.add('wk-drag');
+    const fantasma = ev.cloneNode(true); fantasma.classList.add('wk-fantasma'); fantasma.removeAttribute('data-wev');
+    drag.fantasma = fantasma;
+    if (navigator.vibrate) try { navigator.vibrate(15); } catch (e) {}
+    muovi(x, y);
+  };
+  const muovi = (x, y) => {
+    if (!drag) return;
+    const sotto = document.elementsFromPoint(x, y).find(el => el.classList && el.classList.contains('wk-corpo'));
+    if (!sotto) return;
+    const min = minDa(sotto, y - drag.offY);
+    drag.k = sotto.dataset.wbody; drag.min = min;
+    const f = drag.fantasma;
+    if (f.parentNode !== sotto) sotto.appendChild(f);
+    f.style.top = (min / 60 * PX_ORA) + 'px'; f.style.left = '1px'; f.style.width = 'calc(100% - 2px)';
+    const d = quando(drag.k, min);
+    f.querySelector('b').textContent = fmtOra(d);
+  };
+  const rilascia = () => {
+    fine();
+    if (!drag) return;
+    const { a, k, min, ev, fantasma } = drag; drag = null;
+    ev.classList.remove('wk-drag'); fantasma.remove();
+    appenaTrascinato = true; setTimeout(() => { appenaTrascinato = false; }, 400);
+    if (k == null) return;
+    const nuovo = quando(k, min);
+    if (+nuovo === +new Date(a.inizio)) return;
+    chiediSposta(a.id, nuovo);
+  };
+
+  $$('.wk-ev').forEach(ev => {
+    ev.addEventListener('pointerdown', e => {
+      if (e.button > 0) return;
+      const x0 = e.clientX, y0 = e.clientY, tipo = e.pointerType;
+      const pid = e.pointerId;
+      if (tipo === 'mouse') {
+        const mm = m => { if (!drag && Math.hypot(m.clientX - x0, m.clientY - y0) > 5) iniziaDrag(ev, x0, y0); muovi(m.clientX, m.clientY); };
+        const mu = () => { document.removeEventListener('pointermove', mm); document.removeEventListener('pointerup', mu); rilascia(); };
+        document.addEventListener('pointermove', mm); document.addEventListener('pointerup', mu);
+      } else {
+        timer = setTimeout(() => { timer = null; try { ev.setPointerCapture(pid); } catch (x) {} iniziaDrag(ev, x0, y0); }, 380);
+      }
+    });
+    ev.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') { if (timer && Math.hypot(e.movementX, e.movementY) > 6) fine(); if (drag) muovi(e.clientX, e.clientY); } });
+    ev.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') rilascia(); });
+    ev.addEventListener('pointercancel', () => { fine(); if (drag) { drag.ev.classList.remove('wk-drag'); drag.fantasma.remove(); drag = null; } });
+    ev.addEventListener('contextmenu', e => e.preventDefault());
+    ev.addEventListener('click', e => { e.stopPropagation(); if (!appenaTrascinato && !drag) sheetDettaglio(ev.dataset.wev); });
+  });
+  // mentre si trascina con il dito, la pagina non deve scorrere
+  if (!window.__wkTouch) {
+    window.__wkTouch = true;
+    document.addEventListener('touchmove', e => { if (document.querySelector('.wk-drag')) e.preventDefault(); }, { passive: false });
+  }
+}
+function chiediSposta(id, nuovo) {
+  const a = appt(id); if (!a) return;
+  const c = cliente(a.clienteId) || {};
+  const over = sovrapposizioni(nuovo.toISOString(), a.durata, a.id);
+  openSheet(`
+    <h3>Spostare l'appuntamento?</h3>
+    <p class="lead"><b>${esc(c.nome || '')}</b> · ${esc(a.servizioNome)}</p>
+    <div class="kv"><span>Da</span><b>${cap(fmtData(new Date(a.inizio)))}, ${fmtOra(new Date(a.inizio))}</b></div>
+    <div class="kv"><span>A</span><b>${cap(fmtData(nuovo))}, ${fmtOra(nuovo)}</b></div>
+    ${over.length ? `<div class="warnbox">⚠️ Si sovrappone a: ${over.map(x => `${fmtOra(new Date(x.inizio))} ${esc((cliente(x.clienteId) || {}).nome || '')}`).join(', ')}</div>` : ''}
+    <button class="btn pri block" data-act="confermaSposta" data-id="${a.id}" data-quando="${nuovo.toISOString()}" style="margin-top:16px">Sposta e avvisa la cliente</button>
+    <button class="btn ghost block" data-act="chiudi" style="margin-top:8px">Annulla</button>`);
+}
+
+function viewGiorno() {
   const sel = parseDay(selDay);
   const start = new Date(); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - 7);
   if (sel < start) { start.setTime(sel.getTime()); start.setDate(start.getDate() - 3); }
@@ -633,6 +784,7 @@ function closeSheet() { $('#sheet').classList.remove('on'); $('#backdrop').class
 
 /* ---------- nuovo / modifica appuntamento ---------- */
 function defaultStart() {
+  if (inizioProposto) { const p = inizioProposto; inizioProposto = null; return p; }
   const d = parseDay(selDay);
   const now = new Date();
   if (dayKey(d) === dayKey(now) && now.getHours() >= 8) { d.setHours(now.getHours() + 1, 0, 0, 0); }
@@ -1034,6 +1186,13 @@ document.addEventListener('click', e => {
       } break;
     case 'export': esporta(); break;
     case 'filtroCli': filtroCli = id; render(); break;
+    case 'vistaAg': vistaAg = id; try { localStorage.setItem('beautyconcept.vista', id); } catch (x) {} render(); break;
+    case 'settSposta': { const d = parseDay(selDay); d.setDate(d.getDate() + Number(id)); selDay = dayKey(d); render(); break; }
+    case 'apriGiorno': selDay = id; vistaAg = 'giorno'; try { localStorage.setItem('beautyconcept.vista', 'giorno'); } catch (x) {} render(); break;
+    case 'confermaSposta': {
+      const x = appt(id); x.inizio = el.dataset.quando; x.stato = 'prenotato'; x.inviato = {};
+      save(); selDay = dayKey(new Date(x.inizio)); render(); sheetInvio(id, 'conferma', true); break;
+    }
     case 'statPer': statPer = id; statRif = new Date(); render(); break;
     case 'statSposta': statRif = spostaPeriodo(statPer, statRif, Number(id)); render(); break;
     case 'barra': toast(id); break;
