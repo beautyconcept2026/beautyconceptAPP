@@ -4,7 +4,8 @@
    • NON invia dati dell'agenda o delle clienti: conosce solo la guida dell'app
    ========================================================= */
 const VERSIONI_SDK = ['12.0.0', '11.10.0'];
-const MODELLI = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.5-flash-lite'];
+// in ordine di preferenza: se Google ne ritira uno, si passa da soli al successivo
+const MODELLI = ['gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.8-flash', 'gemini-flash-latest'];
 const KEY_MODELLO = 'beautyconcept.ai.modello';
 
 const BC = window.BC;
@@ -186,7 +187,7 @@ async function invia() {
       } catch (e) {
         const msg = String(e && (e.message || e));
         // modello non disponibile: prova il successivo
-        if (/not found|404|not supported|unsupported model|model/i.test(msg) && modelloIdx < MODELLI.length - 1 && !risposta) {
+        if (/not found|404|not supported|unsupported model|no longer available|model|tempo/i.test(msg) && modelloIdx < MODELLI.length - 1 && !risposta) {
           modelloIdx++; localStorage.removeItem(KEY_MODELLO); nuovoModello(); continue;
         }
         throw e;
