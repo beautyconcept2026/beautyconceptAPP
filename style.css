@@ -199,3 +199,5 @@ input[type=checkbox]{-webkit-appearance:checkbox;appearance:auto;padding:0;width
 .brand>div{min-width:0}
 .brand h1,.brand p{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:440px){ .cloud-dot span{display:none} .cloud-dot{padding:9px} }
+.agg-banner{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + var(--sb));z-index:30;border:1px solid var(--gold2);background:var(--txt);color:#fff;border-radius:999px;padding:11px 18px;font:500 13.5px 'Jost','Inter',sans-serif;box-shadow:0 14px 30px -12px rgba(29,21,23,.7);white-space:nowrap;cursor:pointer;animation:in .4s ease}
+.agg-banner b{color:var(--gold2);font-weight:600}

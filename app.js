@@ -1,4 +1,7 @@
 'use strict';
+/* versione dell'app: deve coincidere con version.json */
+const VERSIONE = '1.12';
+window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
    Tutti i dati restano sul telefono (localStorage).
@@ -355,7 +358,7 @@ function viewImpostazioni() {
       </div>
     </div>
     <button class="btn ghost block small" data-aggiorna style="margin-top:22px">🔄 Aggiorna app all'ultima versione</button>
-    <p class="hint" style="text-align:center;margin:10px 0 4px">Beauty Concept · v1.11</p>`;
+    <p class="hint" style="text-align:center;margin:10px 0 4px">Beauty Concept · v${VERSIONE}</p>`;
 }
 
 function bindImpostazioni() {
@@ -693,3 +696,36 @@ render();
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+/* ---------- aggiornamento automatico ----------
+   Controlla version.json su GitHub quando si torna sull'app e ogni 15 minuti.
+   Se c'è una versione nuova si ricarica da sola, ma solo se non si sta scrivendo
+   o compilando qualcosa; altrimenti mostra un avviso da toccare. */
+let avvisoAgg = false;
+function staLavorando() {
+  const a = document.activeElement;
+  return $('#sheet').classList.contains('on') || (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) || !!$('#login input:focus');
+}
+async function controllaAggiornamento() {
+  if (!navigator.onLine || !/^https?:$/.test(location.protocol)) return;
+  try {
+    const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const { v } = await r.json();
+    if (!v || v === VERSIONE) return;
+    if (!staLavorando()) { aggiornaOra(); return; }
+    if (avvisoAgg) return;
+    avvisoAgg = true;
+    const b = document.createElement('button');
+    b.className = 'agg-banner';
+    b.innerHTML = '✨ Nuova versione pronta · <b>tocca per aggiornare</b>';
+    b.addEventListener('click', aggiornaOra);
+    document.body.appendChild(b);
+  } catch (e) { /* senza rete: riproverà */ }
+}
+function aggiornaOra() {
+  if (window.BCAggiorna) window.BCAggiorna(); else location.reload();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) controllaAggiornamento(); });
+setInterval(controllaAggiornamento, 15 * 60e3);
+setTimeout(controllaAggiornamento, 5000);
