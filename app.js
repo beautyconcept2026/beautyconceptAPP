@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.20';
+const VERSIONE = '1.21';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -16,22 +16,37 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 /* ---------- testi predefiniti dei messaggi ---------- */
-const MSG_CONFERMA = `Ciao {nome}! ✨
+const MSG_CONFERMA = `📅 *{data} alle {ora}* – {servizio} da {centro} ✨
+Ciao {nome}, ti aspetto! Salvalo qui 👉 {link}
+Se non puoi venire avvisami 48 ore prima 🙏`;
+
+const MSG_PROMEMORIA = `⏰ *{data} alle {ora}* – {servizio}
+Ciao {nome}! Confermi? Rispondi *SÌ* 💕`;
+
+// testi predefiniti delle versioni precedenti: se Sara non li ha cambiati, passano ai nuovi
+const VECCHI_TESTI = {
+  msgConferma: `Ciao {nome}! ✨
 Ti confermiamo il tuo appuntamento da {centro}:
 📅 {data} alle {ora}
 💆‍♀️ {servizio}
 
 👉 Tocca qui per salvarlo nel calendario con i promemoria: {link}
 
-Se non puoi venire avvisaci almeno 48 ore prima, così diamo il posto a un'altra cliente. Grazie! 💕`;
-
-const MSG_PROMEMORIA = `Ciao {nome}! 🌸
+Se non puoi venire avvisaci almeno 48 ore prima, così diamo il posto a un'altra cliente. Grazie! 💕`,
+  msgPromemoria: `Ciao {nome}! 🌸
 Ti ricordiamo il tuo appuntamento da {centro}:
 📅 {data} alle {ora}
 💆‍♀️ {servizio}
 
 Rispondi SÌ per confermare 🙏
-Se hai un imprevisto avvisaci subito, così liberiamo il posto.`;
+Se hai un imprevisto avvisaci subito, così liberiamo il posto.`
+};
+function aggiornaTestiPredefiniti() {
+  const s = db.settings; let cambiato = false;
+  if (s.msgConferma === VECCHI_TESTI.msgConferma) { s.msgConferma = MSG_CONFERMA; cambiato = true; }
+  if (s.msgPromemoria === VECCHI_TESTI.msgPromemoria) { s.msgPromemoria = MSG_PROMEMORIA; cambiato = true; }
+  if (cambiato) save();
+}
 
 const MSG_PRIVACY = `Ciao {nome}! 🌸
 Per poterti seguire al meglio e mandarti i promemoria degli appuntamenti, ti inviamo l'informativa sulla privacy di {centro}:
@@ -287,6 +302,7 @@ const IC_SMS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
    RENDER
    ========================================================= */
 function render() {
+  aggiornaTestiPredefiniti();
   $('#nomeCentro').textContent = db.settings.nome || 'Beauty Concept';
   $('#oggi').textContent = cap(fmtData(new Date()));
   const n = daRicordare().length;
@@ -521,8 +537,7 @@ function cardRem(a) {
     <div class="what">${esc(a.servizioNome)} · ${a.durata} min</div>
     ${sent.length ? `<div class="sentline">Promemoria inviato: <b>${sent.join(' + ')}</b></div>` : ''}
     <div class="grid2">
-      ${telValido(c.tel) ? `<a class="btn wa small ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="promemoria:wa" data-id="${a.id}">${IC_WA} WhatsApp <span class="tick">✓</span></a>
-      <a class="btn sms small ${inv.sms ? 'sent' : ''}" href="${smsUrl(c.tel, txt)}" data-sent="promemoria:sms" data-id="${a.id}">${IC_SMS} SMS <span class="tick">✓</span></a>`
+      ${telValido(c.tel) ? `<a class="btn wa small ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="promemoria:wa" data-id="${a.id}" style="grid-column:span 2">${IC_WA} Manda il promemoria su WhatsApp <span class="tick">✓</span></a>`
       : `<button class="btn small" data-cli="${c.id || ''}" style="grid-column:span 2">📞 Manca il numero: aggiungilo</button>`}
       <button class="btn ok small" data-act="conferma" data-id="${a.id}">✓ Ha confermato</button>
       <button class="btn ko small" data-act="disdici" data-id="${a.id}">✕ Disdetto</button>
@@ -953,15 +968,14 @@ function sheetInvio(id, tipo, spostato) {
   const noLink = tipo === 'conferma' && !baseLink();
   openSheet(`
     <h3>${tipo === 'conferma' ? (spostato ? 'Appuntamento spostato' : 'Invia la conferma') : 'Invia il promemoria'}</h3>
-    <p class="lead">A <b>${esc(c.nome)}</b>${c.tel ? ' · ' + esc(c.tel) : ''}<br>Tocca WhatsApp, invia, poi torna qui e tocca SMS.</p>
+    <p class="lead">A <b>${esc(c.nome)}</b>${c.tel ? ' · ' + esc(c.tel) : ''}<br>Tocca il pulsante verde e invia su WhatsApp.</p>
     ${c.id ? `<button class="linkbtn" data-cli="${c.id}">✏️ Nel messaggio la chiamo "${esc(nomeMessaggio(c))}": cambia</button>` : ''}
-    <div class="preview">${esc(txt)}</div>
+    <div class="preview">${esc(txt).replace(/\*([^*\n]+)\*/g, '<b>$1</b>')}</div>
     ${!telValido(c.tel) ? `<div class="warnbox">⚠️ Manca il numero di cellulare di ${esc(c.nome)}.</div>
       <button class="btn pri block" data-cli="${c.id || ''}">📞 Aggiungi il numero</button>` : ''}
     ${noLink ? '<div class="warnbox">⚠️ Il link al calendario non è attivo (vedi Impostazioni). Il messaggio parte comunque senza link.</div>' : ''}
     <div class="stack">
-      ${telValido(c.tel) ? `<a class="btn wa block ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="${tipo}:wa" data-id="${a.id}">${IC_WA} Invia su WhatsApp <span class="tick">✓</span></a>
-      <a class="btn sms block ${inv.sms ? 'sent' : ''}" href="${smsUrl(c.tel, txt)}" data-sent="${tipo}:sms" data-id="${a.id}">${IC_SMS} Invia SMS <span class="tick">✓</span></a>` : ''}
+      ${telValido(c.tel) ? `<a class="btn wa block ${inv.wa ? 'sent' : ''}" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-sent="${tipo}:wa" data-id="${a.id}">${IC_WA} Invia su WhatsApp <span class="tick">✓</span></a>` : ''}
       <button class="btn ghost block" data-act="chiudi">Fatto</button>
     </div>`);
 }
@@ -1107,7 +1121,7 @@ function proponiPosto(apptId) {
   openSheet(`
     <h3>Si è liberato un posto</h3>
     <p class="lead"><b>${cap(fmtData(d))}, ${fmtOra(d)}</b> · ${slot.durata} min<br>${esc(slot.servizioNome)} di ${esc((cliente(slot.clienteId) || {}).nome || '')} è stato disdetto.</p>
-    ${cand.length ? `<p class="lead" style="margin-top:-4px">Clienti in lista d'attesa adatte (${cand.length}). Scrivi a una o più, poi <b>Assegna</b> il posto a chi conferma.</p>
+    ${cand.length ? `<p class="lead" style="margin-top:-4px">Clienti in lista d'attesa adatte (${cand.length}). Scrivi su WhatsApp a una o più, poi <b>Assegna</b> il posto a chi conferma.</p>
       ${cand.map(x => {
         const c = cliente(x.clienteId) || {};
         const finto = { clienteId: x.clienteId, servizioNome: x.servizioNome || slot.servizioNome, inizio: slot.inizio, durata: slot.durata };
@@ -1117,8 +1131,7 @@ function proponiPosto(apptId) {
           <div class="att-top"><b>${esc(c.nome)}</b>${giaScritto ? '<span class="chip confermato">Scritto ✓</span>' : ''}</div>
           <div class="att-info">${esc(x.servizioNome || 'Qualsiasi servizio')} · ${esc(periodoTesto(x))}${x.note ? ' · ' + esc(x.note) : ''}</div>
           <div class="grid2">
-            ${telValido(c.tel) ? `<a class="btn wa small" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-offerta="${x.id}|${slot.id}">${IC_WA} WhatsApp</a>
-            <a class="btn sms small" href="${smsUrl(c.tel, txt)}" data-offerta="${x.id}|${slot.id}">${IC_SMS} SMS</a>`
+            ${telValido(c.tel) ? `<a class="btn wa small" href="${waUrl(c.tel, txt)}" target="_blank" rel="noopener" data-offerta="${x.id}|${slot.id}" style="grid-column:span 2">${IC_WA} Scrivile su WhatsApp</a>`
             : `<button class="btn small" data-cli="${c.id || ''}" style="grid-column:span 2">📞 Manca il numero</button>`}
             <button class="btn pri small" data-act="assegna" data-id="${x.id}" data-slot="${slot.id}" style="grid-column:span 2">✓ Assegna a ${esc((c.nome || '').split(' ')[0])}</button>
           </div></div>`;
