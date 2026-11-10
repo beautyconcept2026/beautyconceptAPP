@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.19';
+const VERSIONE = '1.20';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -136,7 +136,7 @@ function linkCalendario(a) {
   if (!base) return '';
   const c = cliente(a.clienteId) || {};
   const p = new URLSearchParams({
-    n: (c.nome || '').trim().split(/\s+/)[0] || '',
+    n: nomeMessaggio(c) || '',
     s: a.servizioNome,
     t: utcCompact(a.inizio),
     m: String(a.durata),
@@ -146,6 +146,21 @@ function linkCalendario(a) {
   if (db.settings.telefono) p.set('p', telIntl(db.settings.telefono));
   return base + '?' + p.toString();
 }
+/* nome da usare nei messaggi: riconosce i doppi nomi (Maria Grazia, Anna Maria…);
+   si può sempre correggere nella scheda cliente ("Come chiamarla nei messaggi") */
+const SECONDI_NOMI = new Set(('grazia giovanna maria teresa rosaria rosa luisa paola laura chiara elena lucia rita antonietta carmela ' +
+  'assunta concetta cristina francesca vittoria angela beatrice elisa pia giulia carla stella sole letizia lorena loredana ' +
+  'pina carmen gabriella giuseppina immacolata vincenza anna rachele serena chiara silvia sofia martina federica ' +
+  'giovanni giuseppe luigi paolo antonio francesco carlo pietro andrea luca marco angelo alberto').split(' '));
+function nomeMessaggio(c) {
+  if (!c) return '';
+  if (c.chiamata && c.chiamata.trim()) return c.chiamata.trim();
+  const p = String(c.nome || '').trim().replace(/\(.*?\)/g, ' ').split(/\s+/).filter(Boolean);
+  if (!p.length) return '';
+  if (p.length >= 2 && SECONDI_NOMI.has(p[1].toLowerCase()) && /^[A-ZÀ-Ý]/.test(p[1])) return p[0] + ' ' + p[1];
+  return p[0];
+}
+
 function linkPrivacy() {
   const base = baseLink();
   if (!base) return '';
@@ -162,7 +177,7 @@ function msgPrivacy(c) {
   const link = linkPrivacy();
   let tpl = db.settings.msgPrivacy || MSG_PRIVACY;
   if (!link) tpl = tpl.split('\n').filter(l => !l.includes('{link}')).join('\n');
-  const val = { nome: (c.nome || '').trim().split(/\s+/)[0], centro: db.settings.nome, link };
+  const val = { nome: nomeMessaggio(c), centro: db.settings.nome, link };
   return tpl.replace(/\{(\w+)\}/g, (m, k) => (k in val ? val[k] : m)).trim();
 }
 const oggiISO = () => dayKey(new Date());
@@ -174,7 +189,7 @@ function compila(tpl, a) {
   const link = linkCalendario(a);
   if (!link) tpl = tpl.split('\n').filter(l => !l.includes('{link}')).join('\n');
   const val = {
-    nome: (c.nome || '').trim().split(/\s+/)[0],
+    nome: nomeMessaggio(c),
     servizio: a.servizioNome,
     data: fmtData(d),
     ora: fmtOra(d),
@@ -781,6 +796,26 @@ function bindImpostazioni() {
 /* =========================================================
    PANNELLI (dal basso)
    ========================================================= */
+/* tastiera del telefono: il pannello si alza sopra la tastiera e il campo attivo resta in vista */
+function adattaTastiera() {
+  const vv = window.visualViewport; if (!vv) return;
+  const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+  const r = document.documentElement.style;
+  r.setProperty('--kb', kb + 'px');
+  r.setProperty('--vvh', Math.round(vv.height) + 'px');
+  document.body.classList.toggle('tastiera', kb > 80);
+}
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', adattaTastiera);
+  visualViewport.addEventListener('scroll', adattaTastiera);
+  adattaTastiera();
+}
+document.addEventListener('focusin', e => {
+  const el = e.target;
+  if (!el.closest || !el.closest('#sheet') || !/INPUT|TEXTAREA|SELECT/.test(el.tagName)) return;
+  [150, 450].forEach(t => setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (x) { el.scrollIntoView(); } }, t));
+});
+
 /* tasto/gesto Indietro del telefono: chiude il pannello aperto, poi torna all'Agenda */
 let ignoraPop = 0;
 const statoStoria = () => (history.state && history.state.bc) || null;
@@ -919,6 +954,7 @@ function sheetInvio(id, tipo, spostato) {
   openSheet(`
     <h3>${tipo === 'conferma' ? (spostato ? 'Appuntamento spostato' : 'Invia la conferma') : 'Invia il promemoria'}</h3>
     <p class="lead">A <b>${esc(c.nome)}</b>${c.tel ? ' · ' + esc(c.tel) : ''}<br>Tocca WhatsApp, invia, poi torna qui e tocca SMS.</p>
+    ${c.id ? `<button class="linkbtn" data-cli="${c.id}">✏️ Nel messaggio la chiamo "${esc(nomeMessaggio(c))}": cambia</button>` : ''}
     <div class="preview">${esc(txt)}</div>
     ${!telValido(c.tel) ? `<div class="warnbox">⚠️ Manca il numero di cellulare di ${esc(c.nome)}.</div>
       <button class="btn pri block" data-cli="${c.id || ''}">📞 Aggiungi il numero</button>` : ''}
@@ -970,6 +1006,8 @@ function sheetCliente(id) {
     <label>Nome e cognome</label><input id="cNome" value="${esc(c ? c.nome : '')}">
     <label>Cellulare</label><input id="cTel" type="tel" inputmode="tel" value="${esc(c ? c.tel : '')}">
     ${window.BCRubrica && BCRubrica.pickerOk ? '<button class="btn ghost block small" data-rubrica="cTel" style="margin-top:8px">📇 Prendi dalla rubrica</button>' : ''}
+    <label>Come chiamarla nei messaggi</label><input id="cChiamata" value="${esc(c ? c.chiamata || '' : '')}" placeholder="${esc(c ? nomeMessaggio({ nome: c.nome }) : 'Es. Maria Grazia')}" autocapitalize="words">
+    <p class="hint">Se lo lasci vuoto usa: <b id="cChiamataAuto">${esc(c ? nomeMessaggio({ nome: c.nome }) : '—')}</b>. Scrivilo tu per i doppi nomi o i soprannomi (es. "Mariagrazia", "Giò").</p>
     <label>Note</label><input id="cNote" value="${esc(c ? c.note || '' : '')}" placeholder="Allergie, preferenze…">
     <div class="section-t" style="margin-top:18px">Privacy</div>
     <label class="chk"><input type="checkbox" id="cPriv" ${c && c.privacy ? 'checked' : ''}>
@@ -1002,8 +1040,9 @@ function salvaCli(id) {
     privacy: $('#cPriv').checked ? (vecchio.privacy || oggiISO()) : '',
     marketing: $('#cMkt').checked ? (vecchio.marketing || oggiISO()) : ''
   };
-  if (id) Object.assign(cliente(id), { nome, tel, note: $('#cNote').value.trim() }, consensi);
-  else db.clienti.push({ id: uid(), nome, tel, note: $('#cNote').value.trim(), ...consensi });
+  const chiamata = $('#cChiamata').value.trim().replace(/\s+/g, ' ');
+  if (id) Object.assign(cliente(id), { nome, tel, note: $('#cNote').value.trim(), chiamata }, consensi);
+  else db.clienti.push({ id: uid(), nome, tel, note: $('#cNote').value.trim(), chiamata, ...consensi });
   save(); closeSheet(); render(); toast('Cliente salvata');
 }
 

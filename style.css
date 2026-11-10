@@ -304,3 +304,10 @@ label.chk small{display:block;color:var(--ok);font-size:12.5px;margin-top:2px}
 .privacy-frame{width:100%;height:62vh;border:1px solid var(--line);border-radius:16px;background:var(--bg)}
 .sheet-x{position:sticky;top:0;float:right;margin:-2px -6px 0 0;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--txt);font-size:16px;cursor:pointer;z-index:3;box-shadow:0 6px 14px -8px rgba(120,70,60,.5)}
 .grab{cursor:pointer}
+
+/* ===== Tastiera: pannello sopra la tastiera ===== */
+.sheet{bottom:var(--kb,0px);max-height:calc(var(--vvh,100vh) * .94)}
+body.tastiera .sheet{max-height:calc(var(--vvh,100vh) - 12px);border-radius:22px 22px 0 0;padding-bottom:14px}
+body.tastiera .tabs,body.tastiera .fab{display:none}
+.sheet input,.sheet select,.sheet textarea{scroll-margin:90px 0 120px}
+.linkbtn{display:block;background:none;border:0;padding:2px 0 10px;color:var(--gold);font:500 13.5px 'Jost','Inter',sans-serif;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
