@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.21';
+const VERSIONE = '1.22';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -61,6 +61,12 @@ Si è appena liberato un posto da {centro}:
 
 Ti interessa per {servizio}? Rispondimi appena puoi, il posto va a chi conferma per prima 😉`;
 
+const MSG_REGALO = `🎁 Ciao {nome}! Quest'anno regala un momento di bellezza ✨
+Da {centro} trovi i buoni regalo, anche per un trattamento a scelta.
+🎟️ Codice *{coupon}*: {offerta}
+⏳ Valido fino al {scadenza}
+Rispondimi qui e te lo preparo 🎄`;
+
 const DEFAULT = {
   settings: {
     nome: 'Beauty Concept',
@@ -72,6 +78,10 @@ const DEFAULT = {
     msgPromemoria: MSG_PROMEMORIA,
     msgPrivacy: MSG_PRIVACY,
     msgAttesa: MSG_ATTESA,
+    msgRegalo: MSG_REGALO,
+    regaloCodice: 'NATALE',
+    regaloOfferta: '-10% sul buono regalo',
+    regaloScadenza: '24 dicembre',
     titolare: '',
     piva: '',
     email: ''
@@ -308,12 +318,13 @@ function render() {
   const n = daRicordare().length;
   const b = $('#badge'); b.hidden = !n; b.textContent = n;
   $$('.tabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === tab));
-  $('#fab').style.display = tab === 'impostazioni' || tab === 'incassi' ? 'none' : '';
+  $('#fab').style.display = tab === 'impostazioni' || tab === 'incassi' || (tab === 'clienti' && vistaCli === 'regali') ? 'none' : '';
   const v = $('#view');
   v.style.animation = 'none'; void v.offsetWidth; v.style.animation = '';
   v.innerHTML = ({ agenda: viewAgenda, ricordare: viewRicordare, clienti: viewClienti, incassi: viewIncassi, impostazioni: viewImpostazioni })[tab]();
   if (tab === 'agenda') { if (vistaAg === 'settimana') bindSettimana(); else centraGiorno(); }
   if (tab === 'impostazioni') bindImpostazioni();
+  if (tab === 'clienti' && vistaCli === 'regali') bindRegali();
   if (window.BC && window.BC.afterRender) window.BC.afterRender(tab);
   salvaUI();
 }
@@ -560,8 +571,9 @@ function viewClienti() {
     .filter(c => !q || c.nome.toLowerCase().includes(q) || String(c.tel).includes(q))
     .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
   const nAtt = attesaAttive().length;
-  const sel = `<div class="seg"><button class="${vistaCli === 'rubrica' ? 'on' : ''}" data-act="vistaCli" data-id="rubrica">Rubrica</button><button class="${vistaCli === 'attesa' ? 'on' : ''}" data-act="vistaCli" data-id="attesa">Lista d'attesa${nAtt ? ` <small>${nAtt}</small>` : ''}</button></div>`;
+  const sel = `<div class="seg"><button class="${vistaCli === 'rubrica' ? 'on' : ''}" data-act="vistaCli" data-id="rubrica">Rubrica</button><button class="${vistaCli === 'attesa' ? 'on' : ''}" data-act="vistaCli" data-id="attesa">Lista d'attesa${nAtt ? ` <small>${nAtt}</small>` : ''}</button><button class="${vistaCli === 'regali' ? 'on' : ''}" data-act="vistaCli" data-id="regali">🎁 Regali</button></div>`;
   if (vistaCli === 'attesa') return sel + viewAttesa();
+  if (vistaCli === 'regali') return sel + viewRegali();
   return sel + `
     <div class="h2">Clienti</div>
     <p class="sub">${db.clienti.length} in rubrica</p>
@@ -573,6 +585,59 @@ function viewClienti() {
       return `<button class="card cli" data-cli="${c.id}"><span class="avatar">${esc(ini)}</span>
         <span class="info"><b>${esc(c.nome)}</b><span>${c.tel ? esc(c.tel) : '<em style="color:var(--ko);font-style:normal">Senza numero</em>'} · ${n} appuntament${n === 1 ? 'o' : 'i'}</span></span>${c.privacy ? '' : '<span class="nopriv" title="Consenso privacy mancante">🔒</span>'}</button>`;
     }).join('') : `<div class="empty"><div class="ic">👩🏻</div>${q ? 'Nessun risultato.' : 'Nessuna cliente ancora.<br>Vengono aggiunte da sole quando crei un appuntamento.'}</div>`}`;
+}
+
+/* ---------- Regali di Natale (buoni regalo + coupon) ---------- */
+const annoRegalo = () => String(new Date().getFullYear());
+function msgRegalo(c) {
+  const s = db.settings;
+  const val = { nome: nomeMessaggio(c), centro: s.nome, coupon: (s.regaloCodice || '').trim(), offerta: (s.regaloOfferta || '').trim(), scadenza: (s.regaloScadenza || '').trim(), indirizzo: s.indirizzo };
+  // le righe con un dato vuoto (es. nessun coupon) spariscono da sole
+  const righe = (s.msgRegalo || MSG_REGALO).split('\n').filter(l => !(l.match(/\{(\w+)\}/g) || []).some(m => m.slice(1, -1) in val && !val[m.slice(1, -1)]));
+  return righe.join('\n').replace(/\{(\w+)\}/g, (m, k) => (k in val ? val[k] : m)).replace(/\n{3,}/g, '\n\n').trim();
+}
+const destinatarieRegalo = () => db.clienti.filter(c => c.marketing && telValido(c.tel)).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+function listaRegali() {
+  const anno = annoRegalo(), dest = destinatarieRegalo();
+  const fatte = dest.filter(c => c.regalo && c.regalo[anno]).length;
+  const senzaNum = db.clienti.filter(c => c.marketing && !telValido(c.tel)).length;
+  const senzaOk = db.clienti.filter(c => !c.marketing).length;
+  return `
+    <div class="regalo-stat"><b>${fatte}</b> / ${dest.length} inviati</div>
+    ${dest.length ? dest.map(c => {
+      const ok = c.regalo && c.regalo[anno];
+      return `<div class="card regalo ${ok ? 'fatto' : ''}"><span class="info"><b>${esc(c.nome)}</b><span>${ok ? 'Inviato ✓ ' + esc(fmtBreve(String(c.regalo[anno]).slice(0, 10))) : esc(c.tel)}</span></span>
+        <a class="btn wa small" href="${waUrl(c.tel, msgRegalo(c))}" target="_blank" rel="noopener" data-regalo="${c.id}">${IC_WA} ${ok ? 'Rimanda' : 'Invia'}</a></div>`;
+    }).join('') : `<div class="empty"><div class="ic">🎁</div>Nessuna cliente con consenso alle offerte e il numero.<br>Il consenso si segna nella scheda cliente: "Vuole ricevere offerte e promozioni".</div>`}
+    <p class="hint" style="text-align:center;margin-top:14px">Le clienti <b>senza consenso alle offerte</b> (${senzaOk}) non compaiono: per la privacy non si mandano promozioni a chi non ha detto sì.${senzaNum ? `<br>${senzaNum} con consenso ma senza numero.` : ''}</p>`;
+}
+function viewRegali() {
+  const s = db.settings, prova = destinatarieRegalo()[0] || { nome: 'Maria' };
+  return `
+    <div class="h2">Regali di Natale</div>
+    <p class="sub">Un messaggio con il codice sconto per invitare le clienti a regalare un trattamento. Lo mandi con un tocco, una cliente alla volta.</p>
+    <div class="card">
+      <label style="margin-top:2px">Codice coupon</label><input data-set="regaloCodice" value="${esc(s.regaloCodice)}" placeholder="NATALE" autocapitalize="characters">
+      <label>Cosa ottiene chi lo usa</label><input data-set="regaloOfferta" value="${esc(s.regaloOfferta)}" placeholder="-10% sul buono regalo">
+      <label>Valido fino al</label><input data-set="regaloScadenza" value="${esc(s.regaloScadenza)}" placeholder="24 dicembre">
+      <label>Messaggio</label><textarea data-set="msgRegalo">${esc(s.msgRegalo || MSG_REGALO)}</textarea>
+      <p class="hint">Parole automatiche: <code>{nome}</code> <code>{centro}</code> <code>{coupon}</code> <code>{offerta}</code> <code>{scadenza}</code>. Se lasci vuoto un campo, la sua riga sparisce dal messaggio.</p>
+      <button class="btn ghost block small" data-act="resetRegalo" style="margin-top:8px">Ripristina testo originale</button>
+    </div>
+    <div class="section-t">Anteprima</div>
+    <div class="card"><div class="preview" id="regaliPrev">${esc(msgRegalo(prova)).replace(/\*([^*\n]+)\*/g, '<b>$1</b>')}</div></div>
+    <div class="section-t">Invia alle clienti</div>
+    <div id="regaliLista">${listaRegali()}</div>`;
+}
+function bindRegali() {
+  let t;
+  $$('[data-set]').forEach(el => el.addEventListener('input', () => {
+    db.settings[el.dataset.set] = el.value;
+    const prova = destinatarieRegalo()[0] || { nome: 'Maria' };
+    $('#regaliPrev').innerHTML = esc(msgRegalo(prova)).replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+    $('#regaliLista').innerHTML = listaRegali();
+    clearTimeout(t); t = setTimeout(save, 300);
+  }));
 }
 
 function viewAttesa() {
@@ -1194,8 +1259,17 @@ function toast(m) {
    EVENTI
    ========================================================= */
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-tab],[data-day],[data-appt],[data-cli],[data-act],[data-sent],[data-offerta]');
+  const el = e.target.closest('[data-tab],[data-day],[data-appt],[data-cli],[data-act],[data-sent],[data-offerta],[data-regalo]');
   if (!el) return;
+  if (el.dataset.regalo) { // segna il buono regalo come inviato (il link WhatsApp si apre normalmente)
+    const c = cliente(el.dataset.regalo);
+    if (c) {
+      c.regalo = c.regalo || {}; c.regalo[annoRegalo()] = new Date().toISOString(); save();
+      const box = el.closest('.card'); if (box) { box.classList.add('fatto'); box.querySelector('.info span').textContent = 'Inviato ✓ ' + fmtBreve(oggiISO()); }
+      const st = $('.regalo-stat'); if (st) { const dest = destinatarieRegalo(); st.innerHTML = `<b>${dest.filter(x => x.regalo && x.regalo[annoRegalo()]).length}</b> / ${dest.length} inviati`; }
+    }
+    return;
+  }
   if (el.dataset.offerta) { // segna che alla cliente in attesa è stato proposto il posto
     const [aid, sid] = el.dataset.offerta.split('|');
     const y = (db.attesa || []).find(z => z.id === aid);
@@ -1264,6 +1338,7 @@ document.addEventListener('click', e => {
       if (confirm('Ripristinare i testi originali dei messaggi?')) {
         db.settings.msgConferma = MSG_CONFERMA; db.settings.msgPromemoria = MSG_PROMEMORIA; db.settings.msgAttesa = MSG_ATTESA; save(); render(); toast('Testi ripristinati');
       } break;
+    case 'resetRegalo': if (confirm('Ripristinare il testo originale?')) { db.settings.msgRegalo = MSG_REGALO; save(); render(); toast('Testo ripristinato'); } break;
     case 'export': esporta(); break;
     case 'filtroCli': filtroCli = id; render(); break;
     case 'vediPrivacy':
