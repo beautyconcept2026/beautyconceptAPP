@@ -5,5 +5,15 @@ service cloud.firestore {
     match /centri/{uid}/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+    // la cliente dà il consenso dal link dell'informativa (pulsante "Accetto"):
+    // può solo scrivere il proprio consenso, e solo con il codice segreto del suo link
+    match /centri/{uid}/consensi/{cid} {
+      allow create, update: if request.resource.data.keys().hasOnly(['privacy', 'marketing', 't', 'quando'])
+        && request.resource.data.privacy == true
+        && request.resource.data.marketing is bool
+        && request.resource.data.t is string
+        && exists(/databases/$(database)/documents/centri/$(uid)/clienti/$(cid))
+        && get(/databases/$(database)/documents/centri/$(uid)/clienti/$(cid)).data.tok == request.resource.data.t;
+    }
   }
 }

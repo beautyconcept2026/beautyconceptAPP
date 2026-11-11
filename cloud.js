@@ -82,6 +82,7 @@ async function init() {
 /* ---------- sincronizzazione ---------- */
 async function avvia() {
   base = F.doc(fs, 'centri', user.uid);
+  window.BC_UID = user.uid;
   setStato('sync');
   BC.onSave = () => { clearTimeout(pushT); pushT = setTimeout(push, 400); };
 
@@ -107,7 +108,7 @@ async function avvia() {
 function ferma() {
   unsubs.forEach(u => u()); unsubs = [];
   clearInterval(timerBk); clearTimeout(pushT);
-  BC.onSave = null; base = null;
+  BC.onSave = null; base = null; window.BC_UID = null;
   COLS.forEach(c => synced[c].clear()); synced.settings = '';
   setStato('off');
 }
@@ -155,6 +156,21 @@ function ascolta(cloudVince, locale) {
       aggiornaDaCloud();
     }, err => { console.error(err); setStato('errore'); }));
   });
+  // consensi privacy dati dalle clienti con il pulsante "Accetto" del link
+  unsubs.push(F.onSnapshot(F.collection(base, 'consensi'), snap => {
+    const d = BC.getDb(); const nuovi = [];
+    snap.docs.forEach(x => {
+      const v = x.data() || {}, cl = d.clienti.find(y => y.id === x.id);
+      const quando = v.quando && v.quando.toDate ? v.quando.toDate().toISOString() : String(v.quando || '');
+      if (!cl || !v.privacy || !quando || cl.consLink === quando) return;
+      const g = quando.slice(0, 10);
+      cl.privacy = cl.privacy || g;
+      cl.marketing = v.marketing ? (cl.marketing || g) : '';
+      cl.consLink = quando;
+      nuovi.push(cl.nome.split(' ')[0]);
+    });
+    if (nuovi.length) { BC.save(); BC.render(); BC.toast(nuovi.length === 1 ? `🔒 ${nuovi[0]} ha dato il consenso privacy ✓` : `🔒 ${nuovi.length} clienti hanno dato il consenso privacy ✓`); }
+  }, err => console.warn('consensi', err)));
   let primoSet = true;
   unsubs.push(F.onSnapshot(F.doc(base, 'config', 'settings'), { includeMetadataChanges: false }, s => {
     if (primoSet && locale && s.metadata && s.metadata.fromCache) return;

@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.29';
+const VERSIONE = '1.30';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -46,10 +46,16 @@ function aggiornaTestiPredefiniti() {
   if (s.msgConferma === VECCHI_TESTI.msgConferma) { s.msgConferma = MSG_CONFERMA; cambiato = true; }
   if (s.msgPromemoria === VECCHI_TESTI.msgPromemoria) { s.msgPromemoria = MSG_PROMEMORIA; cambiato = true; }
   if (s.msgNatale === VECCHIO_NATALE) { s.msgNatale = MSG_NATALE; cambiato = true; }
+  if (s.msgPrivacy === VECCHIO_PRIVACY && window.BC_UID) { s.msgPrivacy = MSG_PRIVACY; cambiato = true; }
   if (cambiato) save();
 }
 
 const MSG_PRIVACY = `Ciao {nome}! 🌸
+Per mandarti i promemoria degli appuntamenti ci serve il tuo consenso privacy.
+👉 Tocca il link, leggi e premi *Accetto*:
+{link}
+Grazie 💕`;
+const VECCHIO_PRIVACY = `Ciao {nome}! 🌸
 Per poterti seguire al meglio e mandarti i promemoria degli appuntamenti, ti inviamo l'informativa sulla privacy di {centro}:
 {link}
 
@@ -190,7 +196,7 @@ function nomeMessaggio(c) {
   return p[0];
 }
 
-function linkPrivacy() {
+function linkPrivacy(c) {
   const base = baseLink();
   if (!base) return '';
   const s = db.settings;
@@ -200,10 +206,14 @@ function linkPrivacy() {
   if (s.piva) p.set('i', s.piva);
   if (s.email) p.set('e', s.email);
   if (s.telefono) p.set('p', telIntl(s.telefono));
+  if (c && c.id && window.BC_UID) { // pulsante "Accetto": il consenso torna da solo nell'app
+    if (!c.tok) { c.tok = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10); clearTimeout(linkPrivacy.t); linkPrivacy.t = setTimeout(save, 50); }
+    p.set('u', window.BC_UID); p.set('k', c.id); p.set('t', c.tok);
+  }
   return base.replace(/appuntamento\.html$/, 'privacy.html') + '?' + p.toString();
 }
 function msgPrivacy(c) {
-  const link = linkPrivacy();
+  const link = linkPrivacy(c);
   let tpl = db.settings.msgPrivacy || MSG_PRIVACY;
   if (!link) tpl = tpl.split('\n').filter(l => !l.includes('{link}')).join('\n');
   const val = { nome: nomeMessaggio(c), centro: db.settings.nome, link };
@@ -588,7 +598,7 @@ function sheetCodaPriv() {
   if (!c) {
     const n = codaPriv.fatti; codaPriv = null;
     openSheet(`<div style="text-align:center;padding:24px 8px"><div style="font-size:54px">✅</div><h3>Fatto!</h3><p class="lead">${n ? `Informativa inviata a <b>${n}</b> client${n === 1 ? 'e' : 'i'}.` : 'Nessun invio.'}</p>
-      <p class="hint">Quando una cliente risponde OK, aprila in Clienti e spunta il consenso privacy.</p>
+      <p class="hint">Quando una cliente tocca <b>Accetto</b> nel link, il consenso si segna da solo nell'app.</p>
       <button class="btn pri block" data-act="chiudi" style="margin-top:14px">Chiudi</button></div>`);
     return;
   }
@@ -1096,7 +1106,7 @@ function sheetCliente(id) {
     <label class="chk"><input type="checkbox" id="cMkt" ${c && c.marketing ? 'checked' : ''}>
       <span>Vuole ricevere offerte e promozioni${c && c.marketing ? `<small>dal ${fmtBreve(c.marketing)}</small>` : ''}</span></label>
     ${c && telValido(c.tel) && linkPrivacy() ? `<a class="btn ghost block small" href="${esc(waUrl(c.tel, msgPrivacy(c)))}" target="_blank" rel="noopener" data-privinv="${c.id}" style="margin-top:8px">📄 Manda l'informativa su WhatsApp</a>
-      <p class="hint">${c.privInv ? `✓ Inviata il ${fmtBreve(String(c.privInv).slice(0, 10))}. ` : ''}Quando risponde OK, spunta qui sopra e salva.</p>` : ''}
+      <p class="hint">${c.privInv ? `✓ Inviata il ${fmtBreve(String(c.privInv).slice(0, 10))}. ` : ''}Quando tocca <b>Accetto</b> nel link, il consenso si segna da solo.</p>` : ''}
     <button class="btn pri block" data-act="salvaCli" data-id="${c ? c.id : ''}" style="margin-top:16px">Salva</button>
     ${c ? `
       <div class="grid2">

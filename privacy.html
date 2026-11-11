@@ -30,11 +30,20 @@
     b{font-weight:600}
     .foot{text-align:center;color:var(--mut);font-size:12.5px;margin-top:16px;line-height:1.5}
     a{color:var(--gold)}
+    .card.ok{margin-top:16px;padding:18px 20px 16px}
+    .chk{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;line-height:1.5;margin:10px 0;color:#3b2f31}
+    .chk input{width:22px;height:22px;flex:0 0 22px;margin-top:1px;accent-color:#b98c5f}
+    .tick{width:22px;height:22px;flex:0 0 22px;margin-top:1px;border-radius:6px;background:#b98c5f;color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600}
+    .chk small{color:var(--mut)}
+    .acc{display:block;width:100%;margin-top:14px;border:0;border-radius:16px;padding:16px;background:#1d1517;color:#fff;font:600 17px 'Jost',sans-serif;cursor:pointer}
+    .acc:disabled{opacity:.6}
+    .err{color:#b3261e;font-size:13.5px;margin:10px 0 0;text-align:center}
     .torna{position:sticky;top:calc(8px + env(safe-area-inset-top));z-index:5;display:block;margin:0 auto 14px 0;border:1px solid var(--line);background:#fff;color:var(--txt);border-radius:999px;padding:10px 16px;font:500 14px 'Jost',sans-serif;box-shadow:0 8px 20px -10px rgba(120,70,60,.5);cursor:pointer}
   </style>
 </head>
 <body>
 <div class="wrap" id="app"></div>
+<script src="firebase-config.js"></script>
 <script>
 'use strict';
 (function () {
@@ -46,6 +55,7 @@
   var piva = q.get('i') || '';
   var email = q.get('e') || '';
   var tel = (q.get('p') || '').replace(/\D/g, '');
+  var puoAccettare = !!(q.get('u') && q.get('k') && q.get('t') && !q.get('dentro') && window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId);
   var contatti = [email ? 'email <a href="mailto:' + esc(email) + '">' + esc(email) + '</a>' : '', tel ? 'telefono/WhatsApp +' + esc(tel) : '', indirizzo ? 'di persona presso il centro' : ''].filter(Boolean).join(', ');
 
   document.getElementById('app').innerHTML =
@@ -86,7 +96,35 @@
     '<p>Puoi chiederci in ogni momento di accedere ai tuoi dati, correggerli, cancellarli, limitarne l\'uso, riceverne una copia od opporti al trattamento (artt. 15-22 GDPR), e revocare i consensi dati senza conseguenze sui trattamenti già effettuati. ' +
     'Basta scriverci' + (contatti ? ' (' + contatti + ')' : '') + '. Hai anche il diritto di presentare reclamo al Garante per la protezione dei dati personali (<a href="https://www.garanteprivacy.it" target="_blank" rel="noopener">www.garanteprivacy.it</a>).</p>' +
     '</div>' +
-    '<p class="foot">Per dare il tuo consenso rispondi al messaggio che hai ricevuto da ' + esc(centro) + '.<br>Grazie per la fiducia 💕</p>';
+    (puoAccettare ?
+      '<div class="card ok" id="acc">' +
+      '<h2>Il tuo consenso</h2>' +
+      '<label class="chk"><span class="tick">✓</span><span>Ho letto l\'informativa e acconsento al trattamento dei miei dati, comprese le informazioni sulla salute (es. allergie, pelle) per eseguire i trattamenti in sicurezza.</span></label>' +
+      '<label class="chk"><input type="checkbox" id="cM"><span>Voglio ricevere anche offerte e promozioni <small>(facoltativo)</small></span></label>' +
+      '<button class="acc" id="bAcc">✅ Accetto</button>' +
+      '<p class="err" id="eAcc"></p></div>' +
+      '<p class="foot">Grazie per la fiducia 💕</p>'
+    : '<p class="foot">Per dare il tuo consenso rispondi al messaggio che hai ricevuto da ' + esc(centro) + '.<br>Grazie per la fiducia 💕</p>');
+  if (puoAccettare) {
+    var bA = document.getElementById('bAcc');
+    bA.onclick = function () {
+      bA.disabled = true; bA.textContent = 'Un momento…';
+      var cfg = window.FIREBASE_CONFIG || {};
+      var url = 'https://firestore.googleapis.com/v1/projects/' + cfg.projectId + '/databases/(default)/documents/centri/' +
+        encodeURIComponent(q.get('u')) + '/consensi/' + encodeURIComponent(q.get('k')) + '?key=' + cfg.apiKey;
+      fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: {
+        privacy: { booleanValue: true }, marketing: { booleanValue: document.getElementById('cM').checked },
+        t: { stringValue: q.get('t') }, quando: { timestampValue: new Date().toISOString() } } }) })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); })
+        .then(function () {
+          document.getElementById('acc').innerHTML = '<div style="text-align:center;padding:10px 0 14px"><div style="font-size:46px">💕</div><h2>Grazie!</h2><p>Il tuo consenso è stato registrato. Puoi chiudere questa pagina.</p></div>';
+        })
+        .catch(function () {
+          bA.disabled = false; bA.textContent = '✅ Accetto';
+          document.getElementById('eAcc').textContent = 'Non riesco a registrarlo: riprova tra poco, oppure rispondi OK al messaggio WhatsApp.';
+        });
+    };
+  }
   document.title = 'Informativa privacy · ' + centro;
   // pulsante per tornare indietro (serve soprattutto nell'app installata, che non ha la barra del browser)
   var dallApp = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone ||
