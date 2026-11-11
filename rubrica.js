@@ -88,12 +88,12 @@
     const t = n.replace(/\bclient[ei]\b/gi, ' ').replace(/[()\[\]{}\-–—_.,:;|/*#]+/g, ' ').replace(/\s+/g, ' ').trim();
     return t.split(' ').map(w => w.length > 2 && w === w.toUpperCase() ? w.charAt(0) + w.slice(1).toLowerCase() : w).join(' ');
   }
-  function nuoveClienti(db, contatti) {
+  function nuoveClienti(db, contatti, tutti) {
     const numeri = new Set(db.clienti.map(c => coda(c.tel)).filter(Boolean));
     const nomi = new Set(db.clienti.map(c => norm(c.nome)));
     const visti = new Set(), out = [];
     for (const c of contatti) {
-      if (!RE_CLI.test(c.nome)) continue;
+      if (!tutti && !RE_CLI.test(c.nome)) continue;
       const nome = pulisciNome(c.nome), k = coda(c.tel);
       if (!nome || !k || numeri.has(k) || visti.has(k)) continue;
       visti.add(k);
@@ -102,16 +102,16 @@
     return out.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
   }
 
-  function anteprima(contatti) {
+  function anteprima(contatti, tutti) {
     const db = BC.getDb();
     const senza = db.clienti.filter(c => !String(c.tel || '').replace(/\D/g, ''));
-    const nuove = nuoveClienti(db, contatti);
+    const nuove = nuoveClienti(db, contatti, tutti);
     if (!senza.length && !nuove.length) return BC.toast('Niente da aggiungere: clienti e numeri sono già tutti nell\'app ✓');
     const { sicuri, dubbi, nonTrovati } = abbina(senza, contatti);
     window.openSheet(`
       <h3>Clienti dalla rubrica</h3>
       <p class="lead">Ho letto <b>${contatti.length}</b> contatti.</p>
-      <div class="kv"><span>➕ Nuove clienti (con "CLIENTE" nel nome)</span><b>${nuove.length}</b></div>
+      <div class="kv"><span>➕ Nuove clienti${tutti ? '' : ' (con "CLIENTE" nel nome)'}</span><b>${nuove.length}</b></div>
       ${senza.length ? `<div class="kv"><span>✅ Numeri abbinati con sicurezza</span><b>${sicuri.length}</b></div>
       <div class="kv"><span>🤔 Numeri da controllare</span><b>${dubbi.length}</b></div>` : ''}
 
@@ -172,6 +172,15 @@
         input.value = sceltaNumero(c.tel.map(t => ({ num: t, cell: false })));
         input.dispatchEvent(new Event('input', { bubbles: true }));
       } catch (e) { /* annullato */ }
+    },
+    async scegliMolti() {
+      try {
+        const scelti = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+        if (!scelti || !scelti.length) return;
+        const contatti = scelti.map(c => ({ nome: String((c.name && c.name[0]) || '').trim(), tel: sceltaNumero((c.tel || []).map(t => ({ num: t, cell: false }))) })).filter(x => x.nome && x.tel);
+        if (!contatti.length) return BC.toast('I contatti scelti non hanno un numero');
+        anteprima(contatti, true);
+      } catch (e) { BC.toast('Rubrica non disponibile su questo telefono: usa il file .vcf'); }
     },
     leggiVcf, abbina, nuoveClienti, pulisciNome // usati nei test
   };

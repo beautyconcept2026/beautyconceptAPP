@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.26';
+const VERSIONE = '1.27';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -787,7 +787,9 @@ function viewImpostazioni() {
       <p class="hint">Esporta la rubrica del telefono e sceglila qui. L'app <b>aggiunge come nuove clienti i contatti con "CLIENTE" nel nome</b> e abbina i numeri alle clienti che ne sono senza. Prima di salvare ti fa controllare tutto.<br>
       <b>iPhone:</b> app Contatti → in alto a sinistra <b>Liste</b> → tieni premuto <b>Tutti i contatti</b> → <b>Esporta</b> → Salva su File.<br>
       <b>Android:</b> app Contatti → menu → <b>Gestisci contatti</b> → <b>Esporta</b> (file .vcf).</p>
-      <label class="btn block" style="margin:10px 0 0;color:var(--txt);font-size:15px">📇 Scegli il file della rubrica (.vcf)<input type="file" id="vcfFile" accept=".vcf,text/vcard,text/x-vcard" hidden></label>
+      ${window.BCRubrica && BCRubrica.pickerOk ? '<button class="btn pri block" data-act="rubricaMulti" style="margin:10px 0 0;font-size:15px">📇 Scegli i contatti dalla rubrica</button><p class="hint" style="margin-top:6px">Si apre la rubrica: cerca <b>cliente</b>, seleziona tutte quelle che ti servono e conferma. Non serve nessun file.</p>' : ''}
+      <button class="btn block" data-act="vcfApri" style="margin:10px 0 0;color:var(--txt);font-size:15px">📄 Scegli il file della rubrica (.vcf)</button>
+      <input type="file" id="vcfFile" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
     </div>
 
     <div class="section-t">Cloud e backup automatici</div>
@@ -1281,6 +1283,8 @@ document.addEventListener('click', e => {
       if (confirm('Ripristinare i testi originali dei messaggi?')) {
         db.settings.msgConferma = MSG_CONFERMA; db.settings.msgPromemoria = MSG_PROMEMORIA; db.settings.msgAttesa = MSG_ATTESA; db.settings.msgNatale = MSG_NATALE; save(); render(); toast('Testi ripristinati');
       } break;
+    case 'vcfApri': { const f = $('#vcfFile'); if (f) f.click(); } break;
+    case 'rubricaMulti': if (window.BCRubrica) BCRubrica.scegliMolti(); break;
     case 'export': esporta(); break;
     case 'filtroCli': filtroCli = id; render(); break;
     case 'vediPrivacy':
