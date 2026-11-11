@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.23';
+const VERSIONE = '1.24';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -61,6 +61,14 @@ Si è appena liberato un posto da {centro}:
 
 Ti interessa per {servizio}? Rispondimi appena puoi, il posto va a chi conferma per prima 😉`;
 
+const MSG_NATALE = `🎄 Ciao {nome}! Natale si avvicina ✨
+Quest'anno regala un momento di bellezza a chi vuoi bene: da {centro} trovi i *buoni regalo* 🎁
+Scrivimi qui e te lo preparo 💕`;
+function msgNatale(c) {
+  const val = { nome: nomeMessaggio(c), centro: db.settings.nome };
+  return (db.settings.msgNatale || MSG_NATALE).replace(/\{(\w+)\}/g, (m, k) => (k in val ? val[k] : m)).trim();
+}
+
 const DEFAULT = {
   settings: {
     nome: 'Beauty Concept',
@@ -72,6 +80,7 @@ const DEFAULT = {
     msgPromemoria: MSG_PROMEMORIA,
     msgPrivacy: MSG_PRIVACY,
     msgAttesa: MSG_ATTESA,
+    msgNatale: MSG_NATALE,
     titolare: '',
     piva: '',
     email: ''
@@ -748,6 +757,8 @@ function viewImpostazioni() {
       <textarea data-set="msgPromemoria">${esc(s.msgPromemoria)}</textarea>
       <label>Posto libero (alle clienti in lista d'attesa)</label>
       <textarea data-set="msgAttesa">${esc(s.msgAttesa)}</textarea>
+      <label>Natale 🎄 (dalla scheda cliente)</label>
+      <textarea data-set="msgNatale">${esc(s.msgNatale || MSG_NATALE)}</textarea>
       <p class="hint">Parole che si sostituiscono da sole: <code>{nome}</code> <code>{servizio}</code> <code>{data}</code> <code>{ora}</code> <code>{centro}</code> <code>{indirizzo}</code> <code>{link}</code></p>
       <button class="btn ghost block small" data-act="resetMsg" style="margin-top:12px">Ripristina testi originali</button>
     </div>
@@ -1035,6 +1046,7 @@ function sheetCliente(id) {
       <div class="grid2">
         ${c.tel ? `<a class="btn wa" href="https://api.whatsapp.com/send?phone=${telIntl(c.tel)}" target="_blank" rel="noopener">${IC_WA} Scrivi</a>
         <a class="btn" href="tel:+${telIntl(c.tel)}">📞 Chiama</a>` : ''}
+        ${telValido(c.tel) ? `<a class="btn wa" href="${esc(waUrl(c.tel, msgNatale(c)))}" target="_blank" rel="noopener" style="grid-column:span 2">🎄 Manda il messaggio di Natale</a>${c.marketing ? '' : '<p class="hint" style="grid-column:span 2;margin:-4px 0 4px">⚠️ Non ha dato il consenso alle offerte: per la privacy sarebbe meglio non mandarle promozioni.</p>'}` : ''}
         <button class="btn" data-act="nuovoPer" data-id="${c.id}" style="grid-column:span 2">+ Nuovo appuntamento per lei</button>
         <button class="btn ghost" data-act="nuovaAttesa" data-id="${c.id}" style="grid-column:span 2">⏳ Metti in lista d'attesa</button>
       </div>
@@ -1262,7 +1274,7 @@ document.addEventListener('click', e => {
     case 'delSrv': db.servizi = db.servizi.filter(s => s.id !== id); save(); render(); break;
     case 'resetMsg':
       if (confirm('Ripristinare i testi originali dei messaggi?')) {
-        db.settings.msgConferma = MSG_CONFERMA; db.settings.msgPromemoria = MSG_PROMEMORIA; db.settings.msgAttesa = MSG_ATTESA; save(); render(); toast('Testi ripristinati');
+        db.settings.msgConferma = MSG_CONFERMA; db.settings.msgPromemoria = MSG_PROMEMORIA; db.settings.msgAttesa = MSG_ATTESA; db.settings.msgNatale = MSG_NATALE; save(); render(); toast('Testi ripristinati');
       } break;
     case 'export': esporta(); break;
     case 'filtroCli': filtroCli = id; render(); break;
