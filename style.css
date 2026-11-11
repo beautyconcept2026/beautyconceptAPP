@@ -311,13 +311,3 @@ body.tastiera .sheet{max-height:calc(var(--vvh,100vh) - 12px);border-radius:22px
 body.tastiera .tabs,body.tastiera .fab{display:none}
 .sheet input,.sheet select,.sheet textarea{scroll-margin:90px 0 120px}
 .linkbtn{display:block;background:none;border:0;padding:2px 0 10px;color:var(--gold);font:500 13.5px 'Jost','Inter',sans-serif;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-
-/* regali di Natale */
-.card.regalo{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px}
-.card.regalo .info{display:flex;flex-direction:column;min-width:0}
-.card.regalo .info b{font-size:16px;font-weight:600}
-.card.regalo .info span{font-size:13px;color:var(--mut)}
-.card.regalo.fatto .info span{color:var(--ok)}
-.card.regalo .btn{margin:0;white-space:nowrap}
-.regalo-stat{font-size:14px;color:var(--mut);margin:2px 2px 10px}
-.regalo-stat b{color:var(--txt);font-size:18px}
