@@ -81,17 +81,44 @@
   }
 
   /* ---------- anteprima ---------- */
+  /* contatti salvati in rubrica con la parola CLIENTE nel nome → nuove clienti */
+  const RE_CLI = /\bclient[ei]\b/i;
+  const coda = t => String(t || '').replace(/\D/g, '').slice(-9);
+  function pulisciNome(n) {
+    const t = n.replace(/\bclient[ei]\b/gi, ' ').replace(/[()\[\]{}\-–—_.,:;|/*#]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return t.split(' ').map(w => w.length > 2 && w === w.toUpperCase() ? w.charAt(0) + w.slice(1).toLowerCase() : w).join(' ');
+  }
+  function nuoveClienti(db, contatti) {
+    const numeri = new Set(db.clienti.map(c => coda(c.tel)).filter(Boolean));
+    const nomi = new Set(db.clienti.map(c => norm(c.nome)));
+    const visti = new Set(), out = [];
+    for (const c of contatti) {
+      if (!RE_CLI.test(c.nome)) continue;
+      const nome = pulisciNome(c.nome), k = coda(c.tel);
+      if (!nome || !k || numeri.has(k) || visti.has(k)) continue;
+      visti.add(k);
+      out.push({ nome, tel: c.tel, giaNome: nomi.has(norm(nome)), orig: c.nome });
+    }
+    return out.sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+  }
+
   function anteprima(contatti) {
     const db = BC.getDb();
     const senza = db.clienti.filter(c => !String(c.tel || '').replace(/\D/g, ''));
-    if (!senza.length) return BC.toast('Tutte le clienti hanno già il numero ✓');
+    const nuove = nuoveClienti(db, contatti);
+    if (!senza.length && !nuove.length) return BC.toast('Niente da aggiungere: clienti e numeri sono già tutti nell\'app ✓');
     const { sicuri, dubbi, nonTrovati } = abbina(senza, contatti);
     window.openSheet(`
-      <h3>Numeri dalla rubrica</h3>
-      <p class="lead">Ho letto <b>${contatti.length}</b> contatti. Su <b>${senza.length}</b> clienti senza numero:</p>
-      <div class="kv"><span>✅ Abbinate con sicurezza</span><b>${sicuri.length}</b></div>
-      <div class="kv"><span>🤔 Da controllare</span><b>${dubbi.length}</b></div>
-      <div class="kv"><span>Non trovate in rubrica</span><b>${nonTrovati.length}</b></div>
+      <h3>Clienti dalla rubrica</h3>
+      <p class="lead">Ho letto <b>${contatti.length}</b> contatti.</p>
+      <div class="kv"><span>➕ Nuove clienti (con "CLIENTE" nel nome)</span><b>${nuove.length}</b></div>
+      ${senza.length ? `<div class="kv"><span>✅ Numeri abbinati con sicurezza</span><b>${sicuri.length}</b></div>
+      <div class="kv"><span>🤔 Numeri da controllare</span><b>${dubbi.length}</b></div>` : ''}
+
+      ${nuove.length ? `<div class="section-t">Nuove clienti da aggiungere (togli la spunta a chi non vuoi)</div>
+      <div class="rb-box">${nuove.map((x, i) => `
+        <label class="rb-row"><input type="checkbox" data-n="${i}" ${x.giaNome ? '' : 'checked'}>
+          <span><b>${esc(x.nome)}</b><small>${esc(x.tel)}${x.giaNome ? ' · ⚠️ c\'è già una cliente con questo nome' : ''}</small></span></label>`).join('')}</div>` : ''}
 
       ${sicuri.length ? `<div class="section-t">Abbinate (togli la spunta se è sbagliata)</div>
       <div class="rb-box">${sicuri.map((x, i) => `
@@ -106,15 +133,17 @@
             ${x.cand.map((c, k) => `<option value="${k}">${esc(c.nome)} · ${esc(c.tel)}</option>`).join('')}
           </select></span></div>`).join('')}</div>` : ''}
 
-      <button class="btn pri block" id="rbGo" style="margin-top:18px">Salva i numeri</button>
-      <p class="hint" style="text-align:center">Vengono aggiunti solo alle clienti senza numero. I numeri già presenti non vengono toccati.</p>`);
+      <button class="btn pri block" id="rbGo" style="margin-top:18px">Salva</button>
+      <p class="hint" style="text-align:center">Nel nome viene tolta la parola "CLIENTE". Le clienti già presenti e i numeri già salvati non vengono toccati.</p>`);
 
     $('#rbGo').addEventListener('click', () => {
-      let n = 0;
+      let n = 0, nn = 0;
+      const id = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      document.querySelectorAll('[data-n]').forEach(ch => { if (ch.checked) { const x = nuove[ch.dataset.n]; db.clienti.push({ id: id(), nome: x.nome, tel: x.tel, note: '' }); nn++; } });
       document.querySelectorAll('[data-s]').forEach(ch => { if (ch.checked) { const x = sicuri[ch.dataset.s]; x.cl.tel = x.c.tel; n++; } });
       document.querySelectorAll('[data-d]').forEach(sel => { if (sel.value !== '') { const x = dubbi[sel.dataset.d]; x.cl.tel = x.cand[Number(sel.value)].tel; n++; } });
       BC.save(); window.closeSheet(); BC.render();
-      BC.toast(n ? `Aggiunti ${n} numeri ✓` : 'Nessun numero aggiunto');
+      BC.toast(nn || n ? [nn ? `${nn} nuove clienti` : '', n ? `${n} numeri` : ''].filter(Boolean).join(' e ') + ' aggiunti ✓' : 'Nessuna modifica');
     });
   }
 
@@ -144,7 +173,7 @@
         input.dispatchEvent(new Event('input', { bubbles: true }));
       } catch (e) { /* annullato */ }
     },
-    leggiVcf, abbina // usati nei test
+    leggiVcf, abbina, nuoveClienti, pulisciNome // usati nei test
   };
   document.addEventListener('click', e => {
     const b = e.target.closest('[data-rubrica]');

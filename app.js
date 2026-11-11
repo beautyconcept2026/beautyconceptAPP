@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.25';
+const VERSIONE = '1.26';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -781,10 +781,10 @@ function viewImpostazioni() {
       <label class="btn block" style="margin:10px 0 0;color:var(--txt);font-size:15px">📅 Scegli il file di Google Calendar<input type="file" id="gcalFile" accept=".zip,.ics,text/calendar,application/zip" hidden></label>
     </div>
 
-    <div class="section-t">Numeri dalla rubrica del telefono</div>
+    <div class="section-t">Clienti e numeri dalla rubrica del telefono</div>
     <div class="card">
       ${(() => { const n = db.clienti.filter(c => !String(c.tel || '').replace(/\D/g, '')).length; return n ? `<div class="warnbox" style="margin-top:0">${n} client${n === 1 ? 'e' : 'i'} senza numero</div>` : `<div class="okbox" style="margin-top:0">✓ Tutte le clienti hanno il numero</div>`; })()}
-      <p class="hint">Esporta la rubrica del telefono e sceglila qui: l'app abbina da sola i numeri alle clienti e ti fa controllare prima di salvare.<br>
+      <p class="hint">Esporta la rubrica del telefono e sceglila qui. L'app <b>aggiunge come nuove clienti i contatti con "CLIENTE" nel nome</b> e abbina i numeri alle clienti che ne sono senza. Prima di salvare ti fa controllare tutto.<br>
       <b>iPhone:</b> app Contatti → in alto a sinistra <b>Liste</b> → tieni premuto <b>Tutti i contatti</b> → <b>Esporta</b> → Salva su File.<br>
       <b>Android:</b> app Contatti → menu → <b>Gestisci contatti</b> → <b>Esporta</b> (file .vcf).</p>
       <label class="btn block" style="margin:10px 0 0;color:var(--txt);font-size:15px">📇 Scegli il file della rubrica (.vcf)<input type="file" id="vcfFile" accept=".vcf,text/vcard,text/x-vcard" hidden></label>
