@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.28';
+const VERSIONE = '1.29';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -558,6 +558,53 @@ function cardRem(a) {
     </div></div>`;
 }
 
+/* ---------- informativa privacy a tutte (coda guidata, un tocco per cliente) ---------- */
+const daInformare = () => db.clienti.filter(c => telValido(c.tel) && !c.privacy && !c.privInv).sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+let codaPriv = null;
+function sheetInformativaTutte() {
+  if (!linkPrivacy()) return toast('Prima salva i dati del centro in Impostazioni');
+  const lista = daInformare();
+  const conConsenso = db.clienti.filter(c => c.privacy).length;
+  const giaInviata = db.clienti.filter(c => !c.privacy && c.privInv).length;
+  if (!lista.length) return toast('Nessuna cliente da raggiungere: tutte l\'hanno già ricevuta o hanno già dato il consenso ✓');
+  openSheet(`
+    <h3>Informativa a tutte</h3>
+    <p class="lead"><b>${lista.length}</b> client${lista.length === 1 ? 'e' : 'i'} da raggiungere.</p>
+    <p class="hint" style="margin-top:-6px">Non sono incluse: ${conConsenso} con consenso già dato${giaInviata ? `, ${giaInviata} a cui l'hai già mandata da qui` : ''}, e chi non ha il numero.</p>
+    <div class="section-t">Togli la spunta a chi l'hai già mandata a mano</div>
+    <div class="rb-box">${lista.map(c => `<label class="rb-row"><input type="checkbox" data-ip="${c.id}" checked><span><b>${esc(c.nome)}</b><small>${esc(c.tel)}</small></span></label>`).join('')}</div>
+    <button class="btn pri block" data-act="privInizia" style="margin-top:16px">Inizia l'invio</button>
+    <button class="btn ghost block small" data-act="privGia" style="margin-top:8px">Segna le deselezionate come già inviate</button>
+    <p class="hint" style="text-align:center">WhatsApp non permette di mandare tutto in un colpo solo: l'app ti porta da una cliente alla successiva, <b>un tocco ciascuna</b>.</p>`);
+}
+function sheetCodaPriv() {
+  if (!codaPriv || !$('#sheet').classList.contains('on')) return;
+  let c = null;
+  while (codaPriv.i < codaPriv.ids.length) {
+    c = cliente(codaPriv.ids[codaPriv.i]);
+    if (c && telValido(c.tel) && !c.privacy && !c.privInv) break;
+    c = null; codaPriv.i++;
+  }
+  if (!c) {
+    const n = codaPriv.fatti; codaPriv = null;
+    openSheet(`<div style="text-align:center;padding:24px 8px"><div style="font-size:54px">✅</div><h3>Fatto!</h3><p class="lead">${n ? `Informativa inviata a <b>${n}</b> client${n === 1 ? 'e' : 'i'}.` : 'Nessun invio.'}</p>
+      <p class="hint">Quando una cliente risponde OK, aprila in Clienti e spunta il consenso privacy.</p>
+      <button class="btn pri block" data-act="chiudi" style="margin-top:14px">Chiudi</button></div>`);
+    return;
+  }
+  const tot = codaPriv.ids.length, pos = codaPriv.i + 1;
+  openSheet(`
+    <p class="hint" style="margin:6px 0 4px">${pos} di ${tot}</p>
+    <div class="bar" style="height:6px;background:var(--line);border-radius:6px;overflow:hidden;margin-bottom:16px"><div style="height:100%;width:${Math.round((pos - 1) / tot * 100)}%;background:var(--gold)"></div></div>
+    <h3 style="margin-bottom:2px">${esc(c.nome)}</h3>
+    <p class="sub" style="margin:0 0 12px">${esc(c.tel)}</p>
+    <div class="preview">${esc(msgPrivacy(c))}</div>
+    <a class="btn wa block" href="${esc(waUrl(c.tel, msgPrivacy(c)))}" target="_blank" rel="noopener" data-privinv="${c.id}" style="margin-top:14px">${IC_WA} Invia su WhatsApp</a>
+    <button class="btn ghost block small" data-act="privSalta" style="margin-top:8px">Salta questa cliente</button>
+    <button class="btn block small" data-act="chiudi" style="margin-top:8px;color:var(--txt)">Fermati qui</button>
+    <p class="hint" style="text-align:center">Dopo l'invio, torna qui: passa da sola alla prossima.</p>`);
+}
+
 /* ---------- Clienti ---------- */
 const senzaTel = c => !String(c.tel || '').replace(/\D/g, '');
 const FILTRI_CLI = {
@@ -579,6 +626,7 @@ function viewClienti() {
   return sel + `
     <div class="h2">Clienti</div>
     <p class="sub">${db.clienti.length} in rubrica</p>
+    ${linkPrivacy() && daInformare().length ? `<button class="btn block" data-act="privTutte" style="margin:0 0 12px;color:var(--txt);font-size:15px">📄 Manda l'informativa a tutte <small style="opacity:.7">(${daInformare().length})</small></button>` : ''}
     <div class="chips">${Object.entries(FILTRI_CLI).map(([k, v]) => `<button class="chipf ${k === filtroCli ? 'on' : ''}" data-act="filtroCli" data-id="${k}">${v.nome} <small>${db.clienti.filter(v.f).length}</small></button>`).join('')}</div>
     <input type="search" id="cerca" placeholder="🔍  Cerca per nome o telefono" value="${esc(cerca)}" style="margin-bottom:14px">
     ${list.length ? list.map(c => {
@@ -739,7 +787,8 @@ function viewImpostazioni() {
       <label>P.IVA / Codice fiscale</label><input data-set="piva" value="${esc(s.piva)}">
       <label>Email per le richieste privacy</label><input data-set="email" type="email" inputmode="email" value="${esc(s.email)}">
       <label>Messaggio con l'informativa</label><textarea data-set="msgPrivacy">${esc(s.msgPrivacy)}</textarea>
-      ${linkPrivacy() ? `<button class="btn ghost block small" data-act="vediPrivacy" style="margin-top:12px">📄 Vedi l'informativa</button>` : ''}
+      ${linkPrivacy() ? `<button class="btn ghost block small" data-act="vediPrivacy" style="margin-top:12px">📄 Vedi l'informativa</button>
+      <button class="btn pri block small" data-act="privTutte" style="margin-top:8px">📲 Manda l'informativa a tutte</button>` : ''}
       <p class="hint">Testo standard per centri estetici: fallo controllare dal vostro consulente o commercialista. ${(() => { const n = db.clienti.filter(c => !c.privacy).length; return n ? `<br><b>${n}</b> client${n === 1 ? 'e' : 'i'} senza consenso: le trovi in Clienti → "Senza consenso privacy".` : ''; })()}</p>
     </div>
 
@@ -1046,8 +1095,8 @@ function sheetCliente(id) {
       <span>Ha ricevuto l'informativa e dato il consenso al trattamento dei dati (anche allergie / pelle)${c && c.privacy ? `<small>dal ${fmtBreve(c.privacy)}</small>` : ''}</span></label>
     <label class="chk"><input type="checkbox" id="cMkt" ${c && c.marketing ? 'checked' : ''}>
       <span>Vuole ricevere offerte e promozioni${c && c.marketing ? `<small>dal ${fmtBreve(c.marketing)}</small>` : ''}</span></label>
-    ${c && telValido(c.tel) && linkPrivacy() ? `<a class="btn ghost block small" href="${esc(waUrl(c.tel, msgPrivacy(c)))}" target="_blank" rel="noopener" style="margin-top:8px">📄 Manda l'informativa su WhatsApp</a>
-      <p class="hint">Quando risponde OK, spunta qui sopra e salva.</p>` : ''}
+    ${c && telValido(c.tel) && linkPrivacy() ? `<a class="btn ghost block small" href="${esc(waUrl(c.tel, msgPrivacy(c)))}" target="_blank" rel="noopener" data-privinv="${c.id}" style="margin-top:8px">📄 Manda l'informativa su WhatsApp</a>
+      <p class="hint">${c.privInv ? `✓ Inviata il ${fmtBreve(String(c.privInv).slice(0, 10))}. ` : ''}Quando risponde OK, spunta qui sopra e salva.</p>` : ''}
     <button class="btn pri block" data-act="salvaCli" data-id="${c ? c.id : ''}" style="margin-top:16px">Salva</button>
     ${c ? `
       <div class="grid2">
@@ -1213,8 +1262,16 @@ function toast(m) {
    EVENTI
    ========================================================= */
 document.addEventListener('click', e => {
-  const el = e.target.closest('[data-tab],[data-day],[data-appt],[data-cli],[data-act],[data-sent],[data-offerta]');
+  const el = e.target.closest('[data-tab],[data-day],[data-appt],[data-cli],[data-act],[data-sent],[data-offerta],[data-privinv]');
   if (!el) return;
+  if (el.dataset.privinv) { // informativa mandata: la segno e, se sono in coda, passo alla prossima
+    const c = cliente(el.dataset.privinv);
+    if (c) {
+      c.privInv = new Date().toISOString(); save();
+      if (codaPriv && codaPriv.ids[codaPriv.i] === c.id) { codaPriv.i++; codaPriv.fatti++; setTimeout(sheetCodaPriv, 600); }
+    }
+    return;
+  }
   if (el.dataset.offerta) { // segna che alla cliente in attesa è stato proposto il posto
     const [aid, sid] = el.dataset.offerta.split('|');
     const y = (db.attesa || []).find(z => z.id === aid);
@@ -1240,7 +1297,20 @@ document.addEventListener('click', e => {
 
   const id = el.dataset.id;
   switch (el.dataset.act) {
-    case 'chiudi': closeSheet(); render(); break;
+    case 'chiudi': codaPriv = null; closeSheet(); render(); break;
+    case 'privTutte': sheetInformativaTutte(); break;
+    case 'privInizia': {
+      const ids = [...document.querySelectorAll('[data-ip]')].filter(x => x.checked).map(x => x.dataset.ip);
+      if (!ids.length) return toast('Nessuna cliente selezionata');
+      codaPriv = { ids, i: 0, fatti: 0 }; sheetCodaPriv();
+    } break;
+    case 'privGia': {
+      let n = 0;
+      document.querySelectorAll('[data-ip]').forEach(x => { if (!x.checked) { const c = cliente(x.dataset.ip); if (c && !c.privInv) { c.privInv = new Date().toISOString(); n++; } } });
+      if (!n) return toast('Nessuna da segnare: togli la spunta a chi l\'hai già mandata');
+      save(); toast(n + (n === 1 ? ' segnata' : ' segnate') + ' come già inviate ✓'); sheetInformativaTutte();
+    } break;
+    case 'privSalta': if (codaPriv) { codaPriv.i++; sheetCodaPriv(); } break;
     case 'salvaAppt': salvaAppt(id); break;
     case 'invia': sheetInvio(id, el.dataset.tipo); break;
     case 'modifica': formAppt(appt(id)); break;
