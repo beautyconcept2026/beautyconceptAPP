@@ -1,6 +1,6 @@
 'use strict';
 /* versione dell'app: deve coincidere con version.json */
-const VERSIONE = '1.24';
+const VERSIONE = '1.25';
 window.BC_VERSIONE = VERSIONE;
 /* =========================================================
    Beauty Concept – Agenda con conferme e promemoria clienti
@@ -45,6 +45,7 @@ function aggiornaTestiPredefiniti() {
   const s = db.settings; let cambiato = false;
   if (s.msgConferma === VECCHI_TESTI.msgConferma) { s.msgConferma = MSG_CONFERMA; cambiato = true; }
   if (s.msgPromemoria === VECCHI_TESTI.msgPromemoria) { s.msgPromemoria = MSG_PROMEMORIA; cambiato = true; }
+  if (s.msgNatale === VECCHIO_NATALE) { s.msgNatale = MSG_NATALE; cambiato = true; }
   if (cambiato) save();
 }
 
@@ -61,7 +62,11 @@ Si è appena liberato un posto da {centro}:
 
 Ti interessa per {servizio}? Rispondimi appena puoi, il posto va a chi conferma per prima 😉`;
 
-const MSG_NATALE = `🎄 Ciao {nome}! Natale si avvicina ✨
+const MSG_NATALE = `🎄 Cara {nome},
+quest'anno regala a chi ami un momento tutto per sé ✨
+Da {centro} puoi scegliere un *buono regalo* per un trattamento o un importo a piacere 🎁
+Scrivimi qui e lo preparo per te, con la sua confezione 💝`;
+const VECCHIO_NATALE = `🎄 Ciao {nome}! Natale si avvicina ✨
 Quest'anno regala un momento di bellezza a chi vuoi bene: da {centro} trovi i *buoni regalo* 🎁
 Scrivimi qui e te lo preparo 💕`;
 function msgNatale(c) {
