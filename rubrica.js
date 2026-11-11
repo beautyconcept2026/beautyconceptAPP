@@ -180,7 +180,15 @@
         const contatti = scelti.map(c => ({ nome: String((c.name && c.name[0]) || '').trim(), tel: sceltaNumero((c.tel || []).map(t => ({ num: t, cell: false }))) })).filter(x => x.nome && x.tel);
         if (!contatti.length) return BC.toast('I contatti scelti non hanno un numero');
         anteprima(contatti, true);
-      } catch (e) { BC.toast('Rubrica non disponibile su questo telefono: usa il file .vcf'); }
+      } catch (e) {
+        const perm = /security|permission|notallowed|denied/i.test((e && (e.name + ' ' + e.message)) || '');
+        window.openSheet(`<h3>La rubrica non si apre</h3>
+          <p class="lead">${perm ? 'Il telefono non dà a Chrome il permesso di leggere i contatti.' : 'Il telefono non ha aperto la rubrica.'}</p>
+          <div class="section-t">Come sbloccarla</div>
+          <p class="hint" style="font-size:15px;line-height:1.6">1. Apri le <b>Impostazioni</b> del telefono<br>2. <b>App</b> → <b>Chrome</b> → <b>Autorizzazioni</b><br>3. <b>Contatti</b> → <b>Consenti</b><br>4. Torna qui e riprova</p>
+          <p class="hint">Se ancora non va, usa il pulsante <b>📄 Scegli il file della rubrica (.vcf)</b>.</p>
+          <p class="hint" style="opacity:.6">Dettaglio tecnico: ${esc((e && (e.name + ': ' + e.message)) || 'sconosciuto')}</p>`);
+      }
     },
     leggiVcf, abbina, nuoveClienti, pulisciNome // usati nei test
   };
